@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}SMS Simulator — Relay{% endblock %}
+
+{% block content %}
+<div style="display:flex;gap:0;height:calc(100vh - 56px);min-height:500px;">
+
+  <!-- LEFT: SMS PANEL -->
+  <div style="width:400px;flex-shrink:0;border:1px solid #E4DACB;display:flex;flex-direction:column;background:#F6F1E8;">
+
+    <!-- Texting as -->
+    <div style="padding:18px 22px;border-bottom:1px solid #E4DACB;">
+      <div class="section-label" style="margin-bottom:8px;">Texting as</div>
+      <div style="position:relative;">
+        <select id="emp-picker" onchange="fillPhone()" style="width:100%;font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;background:#FBF9F4;border:1px solid #D6CBBA;padding:10px 32px 10px 12px;border-radius:0;cursor:pointer;-webkit-appearance:none;appearance:none;">
+          <option value="">— pick an employee —</option>
+          {% for emp in employees %}
+          <option value="{{ emp.phone }}" data-type="{{ emp.employee_type }}" data-loc="{{ emp.location|default:'Shared' }}">
+            {{ emp.name }} · {{ emp.get_employee_type_display }} · {{ emp.location|default:"Shared" }}
+          </option>
+          {% endfor %}
+        </select>
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:#9A8D7E;font-size:11px;">▼</span>
+      </div>
+    </div>
+
+    <!-- Relay line header -->
+    <div style="padding:10px 22px;border-bottom:1px solid #E4DACB;background:#EFE8DB;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#8A3A2E;">Relay</span>
+      <span id="phone-display" style="font-size:13px;color:#8A8073;">no employee selected</span>
+    </div>
+
+    <!-- Thread / quick-reference -->
+    <div style="flex:1;overflow-y:auto;padding:16px 22px;display:flex;flex-direction:column;gap:10px;">
+      {% if result %}
+        <!-- outbound (user) -->
+        <div style="align-self:flex-end;max-width:82%;background:#8A3A2E;color:#FBF9F4;font-family:'IBM Plex Mono',monospace;font-size:14px;line-height:1.45;padding:10px 14px;white-space:pre-line;overflow-wrap:anywhere;">{{ result.inbound }}</div>
+        <!-- system reply -->
+        {% if result.outbound %}
+        <div style="align-self:flex-start;max-width:86%;background:#FBF9F4;border:1px solid #E4DACB;color:#2B2521;font-family:'IBM Plex Mono',monospace;font-size:14px;line-height:1.5;padding:10px 14px;white-space:pre-line;overflow-wrap:anywhere;">{{ result.outbound }}</div>
+        {% endif %}
+      {% else %}
+        <div style="margin:auto;text-align:center;color:#A89C8C;max-width:260px;">
+          <div style="font-family:'Spectral',serif;font-size:22px;color:#6B6259;margin-bottom:8px;">Text Relay like a person</div>
+          <div style="font-size:14px;line-height:1.5;">Try "can I take Aug 1 off?" or use a quick chip below.</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Quick chips -->
+    <div style="padding:10px 22px 0;display:flex;flex-wrap:wrap;gap:6px;">
+      <button type="button" onclick="setMsg('can I take Aug 15 off?')" style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#6B6259;background:#FBF9F4;border:1px solid #D6CBBA;padding:6px 10px;cursor:pointer;border-radius:0;">can I take Aug 15 off?</button>
+      <button type="button" onclick="setMsg('LEAVE 2025-08-15 2025-08-17')" style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#6B6259;background:#FBF9F4;border:1px solid #D6CBBA;padding:6px 10px;cursor:pointer;border-radius:0;">LEAVE range</button>
+      <button type="button" onclick="setMsg('STATUS')" style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#6B6259;background:#FBF9F4;border:1px solid #D6CBBA;padding:6px 10px;cursor:pointer;border-radius:0;">STATUS</button>
+      <button type="button" onclick="setMsg('CANCEL')" style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#6B6259;background:#FBF9F4;border:1px solid #D6CBBA;padding:6px 10px;cursor:pointer;border-radius:0;">CANCEL</button>
+      <button type="button" onclick="setMsg('HELP')" style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#6B6259;background:#FBF9F4;border:1px solid #D6CBBA;padding:6px 10px;cursor:pointer;border-radius:0;">HELP</button>
+    </div>
+
+    <!-- Input row -->
+    <form method="post" id="sim-form" style="padding:14px 22px;display:flex;gap:8px;align-items:center;">
+      {% csrf_token %}
+      <input type="hidden" name="phone" id="phone-input" value="{{ result.phone|default:'' }}">
+      <input type="text" name="message" id="msg-input"
+             value="{{ result.inbound|default:'' }}"
+             placeholder="Type a message…"
+             required
+             style="flex:1;font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;background:#FBF9F4;border:1px solid #D6CBBA;padding:11px 14px;border-radius:0;">
+      <button type="submit" class="relay-btn relay-btn-primary">Send</button>
+    </form>
+  </div>
+
+  <!-- RIGHT: DECISION PANEL -->
+  <div style="flex:1;overflow-y:auto;padding:32px;background:#EAE3D7;">
+    {% if result %}
+
+    <!-- Employee + leave details -->
+    <h2 class="page-title" style="margin-bottom:22px;">
+      {% if result.employee %}{{ result.employee.name }}{% else %}Unknown sender{% endif %}
+    </h2>
+
+    <div style="background:#F1EADD;padding:24px;margin-bottom:16px;">
+      <table style="width:100%;border-collapse:collapse;">
+        {% if result.employee %}
+        <tr>
+          <td class="section-label" style="padding:8px 0;border-bottom:1px solid #E4DACB;width:38%;">Role</td>
+          <td style="padding:8px 0;border-bottom:1px solid #E4DACB;font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;">{{ result.employee.get_employee_type_display }}</td>
+        </tr>
+        <tr>
+          <td class="section-label" style="padding:8px 0;border-bottom:1px solid #E4DACB;">Location</td>
+          <td style="padding:8px 0;border-bottom:1px solid #E4DACB;font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;">{{ result.employee.location|default:"Shared (multi-location)" }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td class="section-label" style="padding:8px 0;border-bottom:1px solid #E4DACB;">Phone</td>
+          <td style="padding:8px 0;border-bottom:1px solid #E4DACB;font-family:'IBM Plex Mono',monospace;font-size:14px;color:#8A3A2E;">{{ result.phone }} — not registered</td>
+        </tr>
+        {% endif %}
+
+        {% if result.leave %}
+        <tr>
+          <td class="section-label" style="padding:8px 0;border-bottom:1px solid #E4DACB;">Leave dates</td>
+          <td style="padding:8px 0;border-bottom:1px solid #E4DACB;font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">{{ result.leave.start_date }} → {{ result.leave.end_date }}</td>
+        </tr>
+        <tr>
+          <td class="section-label" style="padding:8px 0;border-bottom:1px solid #E4DACB;">Decision</td>
+          <td style="padding:8px 0;border-bottom:1px solid #E4DACB;">
+            {% if result.leave.status == "APPROVED" %}<span class="relay-badge-approved">Approved</span>
+            {% elif result.leave.status == "EXTREME" %}<span class="relay-badge-extreme">Extreme</span>
+            {% elif result.leave.status == "REJECTED" %}<span class="relay-badge-rejected">Rejected</span>
+            {% elif result.leave.status == "CANCELLED" %}<span class="relay-badge-cancelled">Cancelled</span>
+            {% else %}<span class="relay-badge-pending">{{ result.leave.status }}</span>{% endif %}
+          </td>
+        </tr>
+        {% if result.leave.ratio_before %}
+        <tr>
+          <td class="section-label" style="padding:8px 0;border-bottom:1px solid #E4DACB;">Ratio before</td>
+          <td style="padding:8px 0;border-bottom:1px solid #E4DACB;font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">{{ result.leave.ratio_before.providers }}P : {{ result.leave.ratio_before.mas }}MA</td>
+        </tr>
+        <tr>
+          <td class="section-label" style="padding:8px 0;border-bottom:1px solid #E4DACB;">Ratio after</td>
+          <td style="padding:8px 0;border-bottom:1px solid #E4DACB;font-family:'IBM Plex Mono',monospace;font-size:15px;">
+            {% with p=result.leave.ratio_after.providers m=result.leave.ratio_after.mas %}
+            <span class="{% if result.leave.status == 'REJECTED' %}ratio-critical{% elif result.leave.status == 'EXTREME' %}ratio-warning{% else %}ratio-good{% endif %}">{{ p }}P : {{ m }}MA</span>
+            {% if result.leave.status == "REJECTED" %}<span style="font-size:12px;color:#9A8D7E;margin-left:8px;">← below 3:2 threshold</span>
+            {% elif result.leave.status == "EXTREME" %}<span style="font-size:12px;color:#9A8D7E;margin-left:8px;">← at 3:2 limit</span>
+            {% else %}<span style="font-size:12px;color:#9A8D7E;margin-left:8px;">← within safe range</span>{% endif %}
+            {% endwith %}
+          </td>
+        </tr>
+        {% endif %}
+        <tr>
+          <td class="section-label" style="padding:8px 0;">Internal note</td>
+          <td style="padding:8px 0;font-size:13px;color:#8A8073;">{{ result.leave.internal_note|default:"—" }}</td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+
+    {% else %}
+    <!-- Empty state -->
+    <div style="margin:auto;text-align:center;padding-top:60px;color:#A89C8C;">
+      <div style="font-family:'Spectral',serif;font-size:28px;color:#6B6259;margin-bottom:12px;">Pick an employee and send a message</div>
+      <div style="font-size:15px;line-height:1.6;max-width:340px;margin:0 auto;">The ratio engine will evaluate the request and show the decision here with full internal detail.</div>
+    </div>
+    {% endif %}
+
+    <!-- Employee quick-reference -->
+    <div style="margin-top:32px;">
+      <div class="section-label" style="margin-bottom:12px;">Quick employee reference</div>
+      {% regroup employees by get_employee_type_display as type_groups %}
+      {% for group in type_groups %}
+      <div style="margin-bottom:16px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#B0A596;margin-bottom:6px;">{{ group.grouper }}</div>
+        {% for emp in group.list %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #E4DACB;">
+          <div>
+            <span style="font-family:'Spectral',serif;font-size:16px;font-weight:600;color:#2B2521;">{{ emp.name }}</span>
+            <span style="font-size:13px;color:#8A8073;margin-left:6px;">{{ emp.location|default:"Shared" }}</span>
+          </div>
+          <button type="button"
+            onclick="document.getElementById('phone-input').value='{{ emp.phone }}';document.getElementById('emp-picker').value='{{ emp.phone }}';updateDisplay();"
+            style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A3A2E;background:transparent;border:none;cursor:pointer;padding:0;">
+            {{ emp.phone }}
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+function fillPhone() {
+  const sel = document.getElementById('emp-picker');
+  document.getElementById('phone-input').value = sel.value;
+  updateDisplay();
+}
+function updateDisplay() {
+  const sel = document.getElementById('emp-picker');
+  const opt = sel.options[sel.selectedIndex];
+  const ph = sel.value;
+  document.getElementById('phone-display').textContent = ph || 'no employee selected';
+}
+function setMsg(txt) {
+  document.getElementById('msg-input').value = txt;
+  document.getElementById('msg-input').focus();
+}
+{% if result.phone %}
+document.getElementById('phone-input').value = '{{ result.phone }}';
+document.getElementById('phone-display').textContent = '{{ result.phone }}';
+{% endif %}
+</script>
+{% endblock %}

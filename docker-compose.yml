@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: lms_db
+      POSTGRES_USER: lms_user
+      POSTGRES_PASSWORD: lms_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py seed_data &&
+             gunicorn lms.wsgi:application --bind 0.0.0.0:8000 --workers 4 --reload"
+    environment:
+      DJANGO_SETTINGS_MODULE: lms.settings.local
+      DATABASE_URL: postgres://lms_user:lms_pass@db:5432/lms_db
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key
+      DEBUG: "True"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0"
+      TELNYX_API_KEY: ${TELNYX_API_KEY:-}
+      TELNYX_PUBLIC_KEY: ${TELNYX_PUBLIC_KEY:-}
+      TELNYX_PHONE_NUMBER: ${TELNYX_PHONE_NUMBER:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/app
+
+  celery:
+    build: .
+    command: celery -A lms worker --loglevel=info
+    environment:
+      DJANGO_SETTINGS_MODULE: lms.settings.local
+      DATABASE_URL: postgres://lms_user:lms_pass@db:5432/lms_db
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/app
+
+volumes:
+  postgres_data:

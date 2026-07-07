@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}{{ location.name }} — Relay{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex align-items-center gap-3 mb-1">
+  <a href="{% url 'dashboard:overview' %}" class="relay-btn" style="padding:6px 12px;font-size:13px;">&larr; Back</a>
+  <div>
+    <h2 class="page-title" style="margin-bottom:2px;">{{ location.name }}</h2>
+    <div class="section-label">{{ location.city }}, {{ location.state }}</div>
+  </div>
+</div>
+
+<!-- Ratio summary cards -->
+<div class="row g-3 mb-4 mt-2">
+  <div class="col-md-3">
+    <div class="relay-card" style="text-align:center;padding:20px 16px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:36px;font-weight:700;color:#5F7A52;line-height:1;">{{ active_providers }}</div>
+      <div class="section-label" style="margin-top:6px;">Providers on duty</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="relay-card" style="text-align:center;padding:20px 16px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:36px;font-weight:700;color:#5F7A52;line-height:1;">{{ active_mas }}</div>
+      <div class="section-label" style="margin-top:6px;">MAs on duty</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="relay-card" style="text-align:center;padding:20px 16px;">
+      {% with ratio_str=active_providers|stringformat:"s" %}
+        {% if active_providers and active_mas %}
+          {% if active_providers >= 3 and active_mas >= 2 %}
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:#5F7A52;line-height:1;">{{ active_providers }}P : {{ active_mas }}MA</div>
+          {% else %}
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:#C98B3A;line-height:1;">{{ active_providers }}P : {{ active_mas }}MA</div>
+          {% endif %}
+        {% else %}
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:#9A8D7E;line-height:1;">{{ active_providers }}P : {{ active_mas }}MA</div>
+        {% endif %}
+      {% endwith %}
+      <div class="section-label" style="margin-top:6px;">Provider : MA ratio</div>
+    </div>
+  </div>
+</div>
+
+<!-- Staff roster -->
+<div class="row g-3 mb-4">
+
+  <!-- Providers -->
+  <div class="col-md-4">
+    <div style="background:#F1EADD;border:1px solid #E4DACB;">
+      <div style="background:#EAE3D7;border-bottom:1px solid #E4DACB;padding:10px 16px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.07em;text-transform:uppercase;color:#8A8073;">Providers ({{ providers|length }})</span>
+      </div>
+      {% for emp in providers %}
+      <div class="d-flex justify-content-between align-items-center" style="padding:10px 16px;border-bottom:1px solid #E4DACB;">
+        <span style="font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;">{{ emp.name }}</span>
+        <a href="{% url 'dashboard:employee_edit' emp.pk %}" class="relay-btn" style="font-size:12px;padding:4px 10px;">Edit</a>
+      </div>
+      {% empty %}
+      <div style="padding:16px;font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#9A8D7E;">No providers.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Medical Assistants -->
+  <div class="col-md-4">
+    <div style="background:#F1EADD;border:1px solid #E4DACB;">
+      <div style="background:#EAE3D7;border-bottom:1px solid #E4DACB;padding:10px 16px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.07em;text-transform:uppercase;color:#8A8073;">Medical Assistants ({{ mas|length }})</span>
+      </div>
+      {% for emp in mas %}
+      <div class="d-flex justify-content-between align-items-center" style="padding:10px 16px;border-bottom:1px solid #E4DACB;">
+        <span style="font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;">{{ emp.name }}</span>
+        <a href="{% url 'dashboard:employee_edit' emp.pk %}" class="relay-btn" style="font-size:12px;padding:4px 10px;">Edit</a>
+      </div>
+      {% empty %}
+      <div style="padding:16px;font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#9A8D7E;">No MAs.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Shared Staff -->
+  <div class="col-md-4">
+    <div style="background:#F1EADD;border:1px solid #E4DACB;">
+      <div style="background:#EAE3D7;border-bottom:1px solid #E4DACB;padding:10px 16px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.07em;text-transform:uppercase;color:#8A8073;">Shared Staff</span>
+      </div>
+      {% for el in shared_emps %}
+      <div style="padding:10px 16px;border-bottom:1px solid #E4DACB;">
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:15px;font-weight:600;color:#2B2521;">{{ el.employee.name }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:#8A8073;">{{ el.employee.get_employee_type_display }}</div>
+      </div>
+      {% empty %}
+      <div style="padding:16px;font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#9A8D7E;">No shared staff.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Recent Leave History -->
+<div style="background:#F1EADD;border:1px solid #E4DACB;">
+  <div style="background:#EAE3D7;border-bottom:1px solid #E4DACB;padding:10px 18px;">
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.07em;text-transform:uppercase;color:#8A8073;">Recent Leaves at This Location</span>
+  </div>
+
+  <!-- Table header -->
+  <div class="row g-0" style="padding:8px 18px;border-bottom:1px solid #E4DACB;">
+    <div class="col-md-4" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Employee</div>
+    <div class="col-md-3" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Dates</div>
+    <div class="col-md-3" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Status</div>
+    <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Ratio after</div>
+  </div>
+
+  {% for leave in recent_leaves %}
+    {% if leave.status == "APPROVED" %}{% with lc="#5F7A52" %}
+    <div class="row g-0 align-items-center" style="border-left:4px solid {{ lc }};padding:10px 18px;border-bottom:1px solid #E4DACB;">
+      <div class="col-md-4" style="font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;">{{ leave.employee.name }}</div>
+      <div class="col-md-3" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#2B2521;">{{ leave.start_date }}{% if leave.start_date != leave.end_date %} – {{ leave.end_date }}{% endif %}</div>
+      <div class="col-md-3"><span class="relay-badge-approved">Approved</span></div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:{{ lc }};">{% if leave.ratio_after %}{{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA{% else %}—{% endif %}</div>
+    </div>
+    {% endwith %}{% elif leave.status == "REJECTED" %}{% with lc="#8A3A2E" %}
+    <div class="row g-0 align-items-center" style="border-left:4px solid {{ lc }};padding:10px 18px;border-bottom:1px solid #E4DACB;">
+      <div class="col-md-4" style="font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;">{{ leave.employee.name }}</div>
+      <div class="col-md-3" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#2B2521;">{{ leave.start_date }}{% if leave.start_date != leave.end_date %} – {{ leave.end_date }}{% endif %}</div>
+      <div class="col-md-3"><span class="relay-badge-rejected">Rejected</span></div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:{{ lc }};">{% if leave.ratio_after %}{{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA{% else %}—{% endif %}</div>
+    </div>
+    {% endwith %}{% elif leave.status == "EXTREME" %}{% with lc="#C98B3A" %}
+    <div class="row g-0 align-items-center" style="border-left:4px solid {{ lc }};padding:10px 18px;border-bottom:1px solid #E4DACB;">
+      <div class="col-md-4" style="font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;">{{ leave.employee.name }}</div>
+      <div class="col-md-3" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#2B2521;">{{ leave.start_date }}{% if leave.start_date != leave.end_date %} – {{ leave.end_date }}{% endif %}</div>
+      <div class="col-md-3"><span class="relay-badge-extreme">Extreme</span></div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:{{ lc }};">{% if leave.ratio_after %}{{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA{% else %}—{% endif %}</div>
+    </div>
+    {% endwith %}{% elif leave.status == "CANCELLED" %}{% with lc="#9A8D7E" %}
+    <div class="row g-0 align-items-center" style="border-left:4px solid {{ lc }};padding:10px 18px;border-bottom:1px solid #E4DACB;">
+      <div class="col-md-4" style="font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;">{{ leave.employee.name }}</div>
+      <div class="col-md-3" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#2B2521;">{{ leave.start_date }}{% if leave.start_date != leave.end_date %} – {{ leave.end_date }}{% endif %}</div>
+      <div class="col-md-3"><span class="relay-badge-cancelled">Cancelled</span></div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:{{ lc }};">{% if leave.ratio_after %}{{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA{% else %}—{% endif %}</div>
+    </div>
+    {% endwith %}{% else %}{% with lc="#C98B3A" %}
+    <div class="row g-0 align-items-center" style="border-left:4px solid {{ lc }};padding:10px 18px;border-bottom:1px solid #E4DACB;">
+      <div class="col-md-4" style="font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;">{{ leave.employee.name }}</div>
+      <div class="col-md-3" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#2B2521;">{{ leave.start_date }}{% if leave.start_date != leave.end_date %} – {{ leave.end_date }}{% endif %}</div>
+      <div class="col-md-3"><span class="relay-badge-pending">Pending</span></div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:{{ lc }};">{% if leave.ratio_after %}{{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA{% else %}—{% endif %}</div>
+    </div>
+    {% endwith %}{% endif %}
+  {% empty %}
+    <div style="padding:32px;text-align:center;font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#9A8D7E;">No leave history.</div>
+  {% endfor %}
+</div>
+
+{% endblock %}

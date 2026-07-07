@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Leave Queue — Relay{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h2 class="page-title">Leave queue</h2>
+  <div class="section-label" style="margin-top:4px">auto-decided by Relay · override anytime</div>
+</div>
+
+<!-- Filters -->
+<div style="background:#F1EADD;border:1px solid #E4DACB;padding:14px 18px;margin-bottom:20px;">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-auto">
+      <label style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#9A8D7E;display:block;margin-bottom:6px;">Status</label>
+      <select name="status" style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;background:#FBF9F4;border:1px solid #D6CBBA;border-radius:0;color:#2B2521;padding:6px 10px;">
+        <option value="">All Statuses</option>
+        {% for val, label in leave_statuses %}
+          <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#9A8D7E;display:block;margin-bottom:6px;">Location</label>
+      <select name="location" style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;background:#FBF9F4;border:1px solid #D6CBBA;border-radius:0;color:#2B2521;padding:6px 10px;">
+        <option value="">All Locations</option>
+        {% for loc in locations %}
+          <option value="{{ loc.id }}" {% if location_filter == loc.id|stringformat:"i" %}selected{% endif %}>{{ loc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto d-flex gap-2">
+      <button type="submit" class="relay-btn">Filter</button>
+      <a href="{% url 'dashboard:leaves' %}" class="relay-btn">Clear</a>
+    </div>
+  </form>
+</div>
+
+<!-- Table header -->
+<div class="row g-0" style="padding:0 18px 8px 18px;">
+  <div class="col-md-3" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Employee</div>
+  <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Location</div>
+  <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Dates</div>
+  <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Ratio snapshot</div>
+  <div class="col-md-3" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Status · action</div>
+</div>
+
+<!-- Leave rows -->
+{% for leave in leaves %}
+  {% if leave.status == "APPROVED" %}
+    {% with border_color="#5F7A52" status_color="#5F7A52" %}
+    <div class="row g-0 align-items-center" style="background:#F1EADD;border-left:4px solid {{ border_color }};margin-bottom:8px;padding:14px 18px;">
+      <div class="col-md-3">
+        <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
+        {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:{{ status_color }};">
+        {% if leave.ratio_before and leave.ratio_after %}
+          {{ leave.ratio_before.providers }}P:{{ leave.ratio_before.mas }}MA → {{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA
+        {% elif leave.ratio_after %}
+          {{ leave.ratio_after.providers }}P : {{ leave.ratio_after.mas }}MA
+        {% else %}—{% endif %}
+      </div>
+      <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
+        <span class="relay-badge-approved" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">APPROVED</span>
+        {% if leave.status == "PENDING" or leave.status == "EXTREME" %}
+        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
+          {% csrf_token %}<input type="hidden" name="action" value="reject">
+          <button type="submit" class="relay-btn">Reject</button>
+        </form>
+        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
+          {% csrf_token %}<input type="hidden" name="action" value="approve">
+          <button type="submit" class="relay-btn relay-btn-approve">Approve</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endwith %}
+  {% elif leave.status == "REJECTED" %}
+    {% with border_color="#8A3A2E" status_color="#8A3A2E" %}
+    <div class="row g-0 align-items-center" style="background:#F1EADD;border-left:4px solid {{ border_color }};margin-bottom:8px;padding:14px 18px;">
+      <div class="col-md-3">
+        <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
+        {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:{{ status_color }};">
+        {% if leave.ratio_before and leave.ratio_after %}
+          {{ leave.ratio_before.providers }}P:{{ leave.ratio_before.mas }}MA → {{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA
+        {% elif leave.ratio_after %}
+          {{ leave.ratio_after.providers }}P : {{ leave.ratio_after.mas }}MA
+        {% else %}—{% endif %}
+      </div>
+      <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
+        <span class="relay-badge-rejected" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">REJECTED</span>
+      </div>
+    </div>
+    {% endwith %}
+  {% elif leave.status == "EXTREME" %}
+    {% with border_color="#C98B3A" status_color="#C98B3A" %}
+    <div class="row g-0 align-items-center" style="background:#F1EADD;border-left:4px solid {{ border_color }};margin-bottom:8px;padding:14px 18px;">
+      <div class="col-md-3">
+        <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
+        {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:{{ status_color }};">
+        {% if leave.ratio_before and leave.ratio_after %}
+          {{ leave.ratio_before.providers }}P:{{ leave.ratio_before.mas }}MA → {{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA
+        {% elif leave.ratio_after %}
+          {{ leave.ratio_after.providers }}P : {{ leave.ratio_after.mas }}MA
+        {% else %}—{% endif %}
+      </div>
+      <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
+        <span class="relay-badge-extreme" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">EXTREME</span>
+        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
+          {% csrf_token %}<input type="hidden" name="action" value="reject">
+          <button type="submit" class="relay-btn">Reject</button>
+        </form>
+        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
+          {% csrf_token %}<input type="hidden" name="action" value="approve">
+          <button type="submit" class="relay-btn relay-btn-approve">Approve</button>
+        </form>
+      </div>
+    </div>
+    {% endwith %}
+  {% elif leave.status == "CANCELLED" %}
+    {% with border_color="#9A8D7E" status_color="#9A8D7E" %}
+    <div class="row g-0 align-items-center" style="background:#F1EADD;border-left:4px solid {{ border_color }};margin-bottom:8px;padding:14px 18px;">
+      <div class="col-md-3">
+        <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
+        {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:{{ status_color }};">
+        {% if leave.ratio_before and leave.ratio_after %}
+          {{ leave.ratio_before.providers }}P:{{ leave.ratio_before.mas }}MA → {{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA
+        {% elif leave.ratio_after %}
+          {{ leave.ratio_after.providers }}P : {{ leave.ratio_after.mas }}MA
+        {% else %}—{% endif %}
+      </div>
+      <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
+        <span class="relay-badge-cancelled" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">CANCELLED</span>
+      </div>
+    </div>
+    {% endwith %}
+  {% else %}
+    {# PENDING #}
+    {% with border_color="#C98B3A" status_color="#C98B3A" %}
+    <div class="row g-0 align-items-center" style="background:#F1EADD;border-left:4px solid {{ border_color }};margin-bottom:8px;padding:14px 18px;">
+      <div class="col-md-3">
+        <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
+        {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
+      </div>
+      <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:{{ status_color }};">
+        {% if leave.ratio_before and leave.ratio_after %}
+          {{ leave.ratio_before.providers }}P:{{ leave.ratio_before.mas }}MA → {{ leave.ratio_after.providers }}P:{{ leave.ratio_after.mas }}MA
+        {% elif leave.ratio_after %}
+          {{ leave.ratio_after.providers }}P : {{ leave.ratio_after.mas }}MA
+        {% else %}—{% endif %}
+      </div>
+      <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
+        <span class="relay-badge-pending" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">PENDING</span>
+        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
+          {% csrf_token %}<input type="hidden" name="action" value="reject">
+          <button type="submit" class="relay-btn">Reject</button>
+        </form>
+        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
+          {% csrf_token %}<input type="hidden" name="action" value="approve">
+          <button type="submit" class="relay-btn relay-btn-approve">Approve</button>
+        </form>
+      </div>
+    </div>
+    {% endwith %}
+  {% endif %}
+{% empty %}
+  <div style="background:#F1EADD;border:1px solid #E4DACB;padding:40px;text-align:center;font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#9A8D7E;">
+    No leave requests found.
+  </div>
+{% endfor %}
+{% endblock %}

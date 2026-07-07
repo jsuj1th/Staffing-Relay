@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Overview — Relay{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <h2 class="page-title" style="margin-bottom:4px;">Coverage by location</h2>
+    <span class="section-label">Staffing snapshot for {{ today }}</span>
+  </div>
+  <a href="{% url 'dashboard:employee_create' %}" class="relay-btn relay-btn-primary">
+    + Add Employee
+  </a>
+</div>
+
+<!-- Location Cards -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:40px;">
+  {% for item in location_data %}
+    {% if item.status == "good" %}{% with bc="#5F7A52" bl="Good" %}
+    <div style="background:#F1EADD;border:1px solid #E4DACB;border-top:5px solid {{ bc }};padding:16px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:{{ bc }};">{{ bl }}</span>
+          <span style="width:10px;height:10px;border-radius:50%;background:{{ bc }};flex-shrink:0;"></span>
+        </div>
+        <a href="{% url 'dashboard:location_detail' item.location.id %}" style="font-family:'Spectral',serif;font-size:17px;font-weight:600;color:#2B2521;text-decoration:none;display:block;line-height:1.2;margin-bottom:2px;">{{ item.location.name }}</a>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:#8A8073;margin-bottom:10px;">{{ item.location.city }}, {{ item.location.state }}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:{{ bc }};letter-spacing:-0.5px;">{{ item.providers }}P : {{ item.mas }}MA</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:#9A8D7E;margin-top:3px;">Providers : Medical Assistants</div>
+        {% if item.pending_count %}
+        <div style="margin-top:8px;"><a href="{% url 'dashboard:leaves' %}?location={{ item.location.id }}&status=PENDING" class="relay-badge-pending" style="text-decoration:none;">{{ item.pending_count }} pending{% if item.pending_count != 1 %}s{% endif %}</a></div>
+        {% endif %}
+      </div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #E4DACB;">
+        <a href="{% url 'dashboard:location_detail' item.location.id %}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9A8D7E;text-decoration:none;">View shift →</a>
+      </div>
+    </div>
+    {% endwith %}{% elif item.status == "warning" %}{% with bc="#C98B3A" bl="Warning" %}
+    <div style="background:#F1EADD;border:1px solid #E4DACB;border-top:5px solid {{ bc }};padding:16px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:{{ bc }};">{{ bl }}</span>
+          <span style="width:10px;height:10px;border-radius:50%;background:{{ bc }};flex-shrink:0;"></span>
+        </div>
+        <a href="{% url 'dashboard:location_detail' item.location.id %}" style="font-family:'Spectral',serif;font-size:17px;font-weight:600;color:#2B2521;text-decoration:none;display:block;line-height:1.2;margin-bottom:2px;">{{ item.location.name }}</a>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:#8A8073;margin-bottom:10px;">{{ item.location.city }}, {{ item.location.state }}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:{{ bc }};letter-spacing:-0.5px;">{{ item.providers }}P : {{ item.mas }}MA</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:#9A8D7E;margin-top:3px;">Providers : Medical Assistants</div>
+        {% if item.pending_count %}
+        <div style="margin-top:8px;"><a href="{% url 'dashboard:leaves' %}?location={{ item.location.id }}&status=PENDING" class="relay-badge-pending" style="text-decoration:none;">{{ item.pending_count }} pending{% if item.pending_count != 1 %}s{% endif %}</a></div>
+        {% endif %}
+      </div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #E4DACB;">
+        <a href="{% url 'dashboard:location_detail' item.location.id %}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9A8D7E;text-decoration:none;">View shift →</a>
+      </div>
+    </div>
+    {% endwith %}{% else %}{% with bc="#8A3A2E" bl="Critical" %}
+    <div style="background:#F1EADD;border:1px solid #E4DACB;border-top:5px solid {{ bc }};padding:16px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:{{ bc }};">{{ bl }}</span>
+          <span style="width:10px;height:10px;border-radius:50%;background:{{ bc }};flex-shrink:0;"></span>
+        </div>
+        <a href="{% url 'dashboard:location_detail' item.location.id %}" style="font-family:'Spectral',serif;font-size:17px;font-weight:600;color:#2B2521;text-decoration:none;display:block;line-height:1.2;margin-bottom:2px;">{{ item.location.name }}</a>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:#8A8073;margin-bottom:10px;">{{ item.location.city }}, {{ item.location.state }}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:{{ bc }};letter-spacing:-0.5px;">{{ item.providers }}P : {{ item.mas }}MA</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:#9A8D7E;margin-top:3px;">Providers : Medical Assistants</div>
+        {% if item.pending_count %}
+        <div style="margin-top:8px;"><a href="{% url 'dashboard:leaves' %}?location={{ item.location.id }}&status=PENDING" class="relay-badge-pending" style="text-decoration:none;">{{ item.pending_count }} pending{% if item.pending_count != 1 %}s{% endif %}</a></div>
+        {% endif %}
+      </div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #E4DACB;">
+        <a href="{% url 'dashboard:location_detail' item.location.id %}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9A8D7E;text-decoration:none;">View shift →</a>
+      </div>
+    </div>
+    {% endwith %}{% endif %}
+  {% endfor %}
+</div>
+
+<!-- Recent Leave Activity -->
+<div style="background:#F1EADD; border:1px solid #E4DACB; border-radius:0;">
+
+  <!-- Table Header Bar -->
+  <div class="d-flex justify-content-between align-items-center"
+       style="padding:16px 20px; border-bottom:1px solid #E4DACB;">
+    <span style="font-family:'Spectral',serif; font-size:18px; font-weight:600; color:#2B2521;">
+      Recent Leave Activity
+    </span>
+    <a href="{% url 'dashboard:leaves' %}" class="relay-btn" style="font-size:12px;">
+      View All
+    </a>
+  </div>
+
+  <!-- Column Headers -->
+  <div class="row g-0"
+       style="padding:10px 20px; border-bottom:2px solid #E4DACB;">
+    <div class="col-md-3">
+      <span class="section-label">Employee</span>
+    </div>
+    <div class="col-md-2">
+      <span class="section-label">Type</span>
+    </div>
+    <div class="col-md-2">
+      <span class="section-label">Location</span>
+    </div>
+    <div class="col-md-2">
+      <span class="section-label">Dates</span>
+    </div>
+    <div class="col-md-1">
+      <span class="section-label">Status</span>
+    </div>
+    <div class="col-md-2">
+      <span class="section-label">Requested</span>
+    </div>
+  </div>
+
+  <!-- Rows -->
+  {% for leave in recent_leaves %}
+  <div class="row g-0 align-items-center"
+       style="padding:14px 20px; border-bottom:1px solid #E4DACB; background:#F1EADD;">
+    <div class="col-md-3">
+      <div style="font-family:'Spectral',serif; font-size:17px; font-weight:600; color:#2B2521; line-height:1.2;">
+        {{ leave.employee.name }}
+      </div>
+    </div>
+    <div class="col-md-2">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#8A8073; background:#EAE3D7; padding:3px 7px;">
+        {{ leave.employee.get_employee_type_display }}
+      </span>
+    </div>
+    <div class="col-md-2">
+      <span style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#2B2521;">
+        {{ leave.employee.location|default:"Shared" }}
+      </span>
+    </div>
+    <div class="col-md-2">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#2B2521;">
+        {{ leave.start_date }}{% if leave.start_date != leave.end_date %} – {{ leave.end_date }}{% endif %}
+      </span>
+    </div>
+    <div class="col-md-1">
+      {% if leave.status == "APPROVED" %}
+        <span class="relay-badge-approved">Approved</span>
+      {% elif leave.status == "REJECTED" %}
+        <span class="relay-badge-rejected">Rejected</span>
+      {% elif leave.status == "EXTREME" %}
+        <span class="relay-badge-extreme">Extreme</span>
+      {% elif leave.status == "CANCELLED" %}
+        <span class="relay-badge-cancelled">Cancelled</span>
+      {% else %}
+        <span class="relay-badge-pending">Pending</span>
+      {% endif %}
+    </div>
+    <div class="col-md-2">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#9A8D7E;">
+        {{ leave.created_at|timesince }} ago
+      </span>
+    </div>
+  </div>
+  {% empty %}
+  <div style="padding:40px 20px; text-align:center;">
+    <span style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#9A8D7E;">
+      No leave activity yet.
+    </span>
+  </div>
+  {% endfor %}
+
+</div>
+
+{% endblock %}

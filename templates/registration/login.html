@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Relay</title>
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    /* ── Left identity panel ── */
+    .id-panel {
+      background: #2B2521;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 40px 52px;
+      min-height: 100vh;
+    }
+
+    .id-wordmark {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #8A3A2E;
+    }
+
+    .id-ratio {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: clamp(60px, 8vw, 96px);
+      font-weight: 600;
+      color: #FBF9F4;
+      line-height: 1;
+      letter-spacing: -3px;
+    }
+
+    .id-ratio-sub {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 16px;
+      color: #6B6259;
+      margin-top: 20px;
+      line-height: 1.6;
+    }
+
+    .id-ratio-sub strong {
+      color: #9A8D7E;
+      font-weight: 400;
+    }
+
+    .id-footer {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #3D3530;
+    }
+
+    /* ── Right form panel ── */
+    .form-panel {
+      background: #FBF9F4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 52px;
+    }
+
+    .form-inner {
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .form-heading {
+      font-family: 'Spectral', serif;
+      font-size: 26px;
+      font-weight: 600;
+      color: #2B2521;
+      margin-bottom: 6px;
+    }
+
+    .form-sub {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      color: #9A8D7E;
+      margin-bottom: 36px;
+    }
+
+    .field-group { margin-bottom: 20px; }
+
+    .field-label {
+      display: block;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: #9A8D7E;
+      margin-bottom: 7px;
+    }
+
+    .field-input {
+      display: block;
+      width: 100%;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 15px;
+      color: #2B2521;
+      background: #FBF9F4;
+      border: 1px solid #D6CBBA;
+      border-radius: 0;
+      padding: 10px 13px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .field-input:focus {
+      border-color: #8A3A2E;
+      box-shadow: 0 0 0 2px rgba(138, 58, 46, 0.1);
+    }
+
+    .sign-in-btn {
+      display: block;
+      width: 100%;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: #FBF9F4;
+      background: #8A3A2E;
+      border: none;
+      border-radius: 0;
+      padding: 13px 20px;
+      cursor: pointer;
+      margin-top: 28px;
+      transition: background 0.15s;
+    }
+
+    .sign-in-btn:hover { background: #712E24; }
+
+    .alert-error {
+      background: #FBF9F4;
+      border: 1px solid #8A3A2E;
+      border-left: 4px solid #8A3A2E;
+      color: #8A3A2E;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      padding: 10px 14px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 700px) {
+      body { grid-template-columns: 1fr; }
+      .id-panel { display: none; }
+      .form-panel { padding: 60px 32px; background: #EAE3D7; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Left: identity -->
+  <div class="id-panel">
+    <div class="id-wordmark">Relay</div>
+
+    <div>
+      <div class="id-ratio">3P<br>: 2MA</div>
+      <p class="id-ratio-sub">
+        The ratio that keeps<br>
+        <strong>care staffed.</strong>
+      </p>
+    </div>
+
+    <div class="id-footer">Hospital Leave Management</div>
+  </div>
+
+  <!-- Right: form -->
+  <div class="form-panel">
+    <div class="form-inner">
+      <h1 class="form-heading">Manager sign-in</h1>
+      <p class="form-sub">Access the coverage dashboard</p>
+
+      {% if messages %}
+        {% for msg in messages %}
+          <div class="alert-error">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="field-group">
+          <label class="field-label" for="id_username">Username</label>
+          <input type="text" name="username" id="id_username" class="field-input" autofocus required autocomplete="username">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="id_password">Password</label>
+          <input type="password" name="password" id="id_password" class="field-input" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="sign-in-btn">Sign In →</button>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>

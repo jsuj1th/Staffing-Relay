@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Relay{% endblock %}</title>
+
+  <!-- Bootstrap CSS (loaded first so custom styles override it) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+  <style>
+    /* ─── Reset & Base ─── */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 15px;
+      color: #2B2521;
+      background: #EAE3D7;
+      line-height: 1.5;
+    }
+
+    /* ─── Scrollbar ─── */
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #D6CBBA; border-radius: 0; }
+    ::-webkit-scrollbar-thumb:hover { background: #C4B7A6; }
+
+    /* ─── App Shell ─── */
+    .app-shell {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ─── Sidebar ─── */
+    .sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      background: #2B2521;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .sidebar-brand {
+      padding: 20px 20px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #8A3A2E;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sidebar-brand i {
+      font-size: 16px;
+      color: #8A3A2E;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      padding: 12px 10px;
+      gap: 2px;
+      flex: 1;
+    }
+
+    .sidebar-nav .nav-link {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #A89C8C;
+      padding: 9px 12px;
+      border-radius: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .sidebar-nav .nav-link:hover {
+      color: #FBF9F4;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .sidebar-nav .nav-link.active {
+      color: #FBF9F4;
+      background: rgba(138, 58, 46, 0.2);
+    }
+
+    .sidebar-nav .nav-link i {
+      font-size: 15px;
+      width: 16px;
+      text-align: center;
+    }
+
+    .sidebar-divider {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      margin: 8px 10px;
+    }
+
+    .sidebar-nav .nav-link-highlight {
+      color: #C98B3A;
+    }
+
+    .sidebar-nav .nav-link-highlight:hover {
+      color: #FBF9F4;
+    }
+
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .sidebar-footer .user-name {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      color: #8A8073;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .sidebar-footer .logout-link {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #8A3A2E;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sidebar-footer .logout-link:hover {
+      color: #FBF9F4;
+    }
+
+    /* ─── Main Content ─── */
+    .main-content {
+      flex: 1;
+      background: #EAE3D7;
+      min-width: 0;
+      padding: 28px 32px;
+    }
+
+    /* ─── Alerts ─── */
+    .alert {
+      border-radius: 0;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      padding: 12px 16px;
+      border-width: 1px;
+      border-style: solid;
+    }
+
+    .alert-warning {
+      background: #FDF3E0;
+      border-color: #C98B3A;
+      color: #7A5420;
+    }
+
+    .alert-danger {
+      background: #FCEEE9;
+      border-color: #8A3A2E;
+      color: #5C1E14;
+    }
+
+    .alert-success {
+      background: #EAF2E6;
+      border-color: #5F7A52;
+      color: #3A5430;
+    }
+
+    .alert-info {
+      background: #F1EADD;
+      border-color: #C4B7A6;
+      color: #4A3F36;
+    }
+
+    .btn-close {
+      filter: none;
+      opacity: 0.5;
+    }
+
+    .btn-close:hover {
+      opacity: 0.9;
+    }
+
+    /* ─── Typography Utilities ─── */
+    .page-title {
+      font-family: 'Spectral', serif;
+      font-size: 30px;
+      font-weight: 600;
+      color: #2B2521;
+    }
+
+    .section-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9A8D7E;
+    }
+
+    /* ─── Ratio Status Colors ─── */
+    .ratio-good    { color: #5F7A52; }
+    .ratio-warning { color: #C98B3A; }
+    .ratio-critical { color: #8A3A2E; }
+
+    /* ─── Cards ─── */
+    .relay-card {
+      background: #F1EADD;
+      border: none;
+      box-shadow: none;
+      border-radius: 0;
+    }
+
+    /* Override Bootstrap card defaults */
+    .card {
+      background: #F1EADD;
+      border: 1px solid #E4DACB;
+      box-shadow: none;
+      border-radius: 0;
+    }
+
+    .card-header {
+      background: #F6F1E8;
+      border-bottom: 1px solid #E4DACB;
+      border-radius: 0 !important;
+    }
+
+    .card-footer {
+      background: #F6F1E8;
+      border-top: 1px solid #E4DACB;
+      border-radius: 0 !important;
+    }
+
+    /* ─── Badges ─── */
+    .relay-badge-approved,
+    .relay-badge-rejected,
+    .relay-badge-extreme,
+    .relay-badge-pending,
+    .relay-badge-cancelled {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      display: inline-block;
+      border-radius: 0;
+    }
+
+    .relay-badge-approved  { background: #5F7A52; color: #FBF9F4; }
+    .relay-badge-rejected  { background: #8A3A2E; color: #FBF9F4; }
+    .relay-badge-extreme   { background: #C98B3A; color: #FBF9F4; }
+    .relay-badge-pending   { background: #9A8D7E; color: #FBF9F4; }
+    .relay-badge-cancelled { background: #C4B7A6; color: #4A3F36; }
+
+    /* ─── Buttons ─── */
+    .relay-btn {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-radius: 0;
+      padding: 10px 18px;
+      border: 1px solid #C4B7A6;
+      background: transparent;
+      color: #6B6259;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .relay-btn:hover {
+      background: #E4DACB;
+      color: #2B2521;
+      border-color: #B0A596;
+    }
+
+    .relay-btn-primary {
+      background: #8A3A2E;
+      border-color: #8A3A2E;
+      color: #FBF9F4;
+    }
+
+    .relay-btn-primary:hover {
+      background: #712E24;
+      border-color: #712E24;
+      color: #FBF9F4;
+    }
+
+    .relay-btn-approve {
+      background: #5F7A52;
+      border-color: #5F7A52;
+      color: #FBF9F4;
+    }
+
+    .relay-btn-approve:hover {
+      background: #4D6542;
+      border-color: #4D6542;
+      color: #FBF9F4;
+    }
+
+    /* Override Bootstrap btn defaults */
+    .btn {
+      border-radius: 0;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .btn-primary {
+      background: #8A3A2E;
+      border-color: #8A3A2E;
+      color: #FBF9F4;
+    }
+
+    .btn-primary:hover, .btn-primary:focus, .btn-primary:active {
+      background: #712E24;
+      border-color: #712E24;
+      color: #FBF9F4;
+    }
+
+    .btn-success {
+      background: #5F7A52;
+      border-color: #5F7A52;
+      color: #FBF9F4;
+    }
+
+    .btn-success:hover, .btn-success:focus, .btn-success:active {
+      background: #4D6542;
+      border-color: #4D6542;
+    }
+
+    .btn-danger {
+      background: #8A3A2E;
+      border-color: #8A3A2E;
+      color: #FBF9F4;
+    }
+
+    .btn-danger:hover, .btn-danger:focus, .btn-danger:active {
+      background: #712E24;
+      border-color: #712E24;
+    }
+
+    .btn-warning {
+      background: #C98B3A;
+      border-color: #C98B3A;
+      color: #FBF9F4;
+    }
+
+    .btn-warning:hover, .btn-warning:focus, .btn-warning:active {
+      background: #A87030;
+      border-color: #A87030;
+      color: #FBF9F4;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border-color: #C4B7A6;
+      color: #6B6259;
+    }
+
+    .btn-secondary:hover {
+      background: #E4DACB;
+      border-color: #B0A596;
+      color: #2B2521;
+    }
+
+    .btn-outline-primary {
+      border-color: #8A3A2E;
+      color: #8A3A2E;
+      background: transparent;
+    }
+
+    .btn-outline-primary:hover {
+      background: #8A3A2E;
+      color: #FBF9F4;
+    }
+
+    .btn-sm {
+      font-size: 11px;
+      padding: 6px 12px;
+    }
+
+    /* ─── Forms ─── */
+    .form-control, .form-select {
+      border-radius: 0;
+      border: 1px solid #C4B7A6;
+      background: #FBF9F4;
+      color: #2B2521;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+    }
+
+    .form-control:focus, .form-select:focus {
+      border-color: #8A3A2E;
+      box-shadow: 0 0 0 2px rgba(138, 58, 46, 0.12);
+      background: #FBF9F4;
+      color: #2B2521;
+    }
+
+    .form-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #8A8073;
+      margin-bottom: 5px;
+    }
+
+    /* ─── Tables ─── */
+    .table {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      color: #2B2521;
+      --bs-table-bg: transparent;
+      --bs-table-striped-bg: rgba(241, 234, 221, 0.4);
+      --bs-table-hover-bg: rgba(228, 218, 203, 0.5);
+      --bs-table-border-color: #E4DACB;
+    }
+
+    .table thead th {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9A8D7E;
+      border-bottom: 1px solid #E4DACB;
+      background: #F6F1E8;
+      font-weight: 500;
+      padding: 10px 14px;
+    }
+
+    .table td {
+      padding: 10px 14px;
+      vertical-align: middle;
+      border-color: #E4DACB;
+    }
+
+    /* ─── Dropdowns ─── */
+    .dropdown-menu {
+      border-radius: 0;
+      border: 1px solid #E4DACB;
+      background: #FBF9F4;
+      box-shadow: 0 4px 16px rgba(43, 37, 33, 0.1);
+    }
+
+    .dropdown-item {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      color: #2B2521;
+      padding: 8px 16px;
+    }
+
+    .dropdown-item:hover, .dropdown-item:focus {
+      background: #F1EADD;
+      color: #2B2521;
+    }
+
+    /* ─── Modals ─── */
+    .modal-content {
+      border-radius: 0;
+      border: 1px solid #E4DACB;
+      background: #FBF9F4;
+    }
+
+    .modal-header {
+      border-bottom: 1px solid #E4DACB;
+      background: #F6F1E8;
+    }
+
+    .modal-title {
+      font-family: 'Spectral', serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: #2B2521;
+    }
+
+    .modal-footer {
+      border-top: 1px solid #E4DACB;
+      background: #F6F1E8;
+    }
+
+    /* ─── Badges (Bootstrap override) ─── */
+    .badge {
+      border-radius: 0;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* ─── Nav tabs ─── */
+    .nav-tabs {
+      border-bottom: 1px solid #E4DACB;
+    }
+
+    .nav-tabs .nav-link {
+      border-radius: 0;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #8A8073;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 9px 16px;
+    }
+
+    .nav-tabs .nav-link:hover {
+      color: #2B2521;
+      border-bottom-color: #C4B7A6;
+    }
+
+    .nav-tabs .nav-link.active {
+      color: #8A3A2E;
+      background: transparent;
+      border-bottom: 2px solid #8A3A2E;
+    }
+
+    /* ─── Pagination ─── */
+    .page-link {
+      border-radius: 0 !important;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: #6B6259;
+      border-color: #E4DACB;
+      background: #FBF9F4;
+    }
+
+    .page-link:hover {
+      background: #F1EADD;
+      color: #2B2521;
+      border-color: #C4B7A6;
+    }
+
+    .page-item.active .page-link {
+      background: #8A3A2E;
+      border-color: #8A3A2E;
+      color: #FBF9F4;
+    }
+
+    /* ─── Text utilities ─── */
+    .text-muted { color: #9A8D7E !important; }
+    .text-secondary { color: #8A8073 !important; }
+
+    /* ─── Surface helpers ─── */
+    .surface-card { background: #FBF9F4; }
+    .surface-panel { background: #F6F1E8; }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% if user.is_authenticated %}
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <i class="bi bi-hospital"></i>Relay
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-link {% if request.resolver_match.url_name == 'overview' %}active{% endif %}" href="{% url 'dashboard:overview' %}">
+        <i class="bi bi-speedometer2"></i>Overview
+      </a>
+      <a class="nav-link {% if 'employee' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'dashboard:employees' %}">
+        <i class="bi bi-people"></i>Employees
+      </a>
+      <a class="nav-link {% if 'leave' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'dashboard:leaves' %}">
+        <i class="bi bi-calendar-check"></i>Leaves
+      </a>
+      <a class="nav-link {% if 'sms' in request.resolver_match.url_name and request.resolver_match.url_name != 'sms_simulator' %}active{% endif %}" href="{% url 'dashboard:sms_logs' %}">
+        <i class="bi bi-chat-dots"></i>SMS Logs
+      </a>
+      <hr class="sidebar-divider">
+      <a class="nav-link nav-link-highlight {% if request.resolver_match.url_name == 'sms_simulator' %}active{% endif %}" href="{% url 'sms_simulator' %}">
+        <i class="bi bi-phone"></i>SMS Simulator
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
+      <a href="{% url 'dashboard:logout' %}" class="logout-link">
+        <i class="bi bi-box-arrow-right"></i>Logout
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="main-content">
+    {% if messages %}
+      <div style="padding: 16px 20px 0;">
+        {% for msg in messages %}
+          <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert">
+            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

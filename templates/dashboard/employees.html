@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Employees — Relay{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="page-title" style="margin-bottom:4px;">Employees</h2>
+    <span class="section-label">All staff across locations</span>
+  </div>
+  <a href="{% url 'dashboard:employee_create' %}" class="relay-btn relay-btn-primary">
+    + Add Employee
+  </a>
+</div>
+
+<!-- Filters -->
+<div style="background:#F1EADD; border:1px solid #E4DACB; border-radius:0; padding:14px 20px; margin-bottom:24px;">
+  <form method="get" class="row g-2 align-items-end">
+
+    <div class="col-auto">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                    letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:6px;">
+        Type
+      </label>
+      <select name="type"
+              style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#2B2521;
+                     background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0;
+                     padding:7px 12px; min-width:160px;">
+        <option value="">All Types</option>
+        {% for val, label in employee_types %}
+          <option value="{{ val }}" {% if type_filter == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-auto">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                    letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:6px;">
+        Location
+      </label>
+      <select name="location"
+              style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#2B2521;
+                     background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0;
+                     padding:7px 12px; min-width:180px;">
+        <option value="">All Locations</option>
+        {% for loc in locations %}
+          <option value="{{ loc.id }}" {% if location_filter == loc.id|stringformat:"i" %}selected{% endif %}>
+            {{ loc.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-auto" style="display:flex; gap:8px;">
+      <button type="submit" class="relay-btn relay-btn-primary" style="align-self:flex-end;">
+        Filter
+      </button>
+      <a href="{% url 'dashboard:employees' %}" class="relay-btn" style="align-self:flex-end;">
+        Clear
+      </a>
+    </div>
+
+  </form>
+</div>
+
+<!-- Employees Table -->
+<div style="background:#F1EADD; border:1px solid #E4DACB; border-radius:0;">
+
+  <!-- Column Headers -->
+  <div class="row g-0"
+       style="padding:10px 20px; border-bottom:2px solid #E4DACB;">
+    <div class="col-md-3">
+      <span class="section-label">Name</span>
+    </div>
+    <div class="col-md-2">
+      <span class="section-label">Type</span>
+    </div>
+    <div class="col-md-2">
+      <span class="section-label">Phone</span>
+    </div>
+    <div class="col-md-2">
+      <span class="section-label">Location</span>
+    </div>
+    <div class="col-md-2">
+      <span class="section-label">Status</span>
+    </div>
+    <div class="col-md-1">
+      <span class="section-label">&nbsp;</span>
+    </div>
+  </div>
+
+  <!-- Employee Rows -->
+  {% for emp in employees %}
+  <div class="row g-0 align-items-center"
+       style="padding:14px 20px; border-bottom:1px solid #E4DACB; background:#F1EADD;">
+
+    <div class="col-md-3">
+      <span style="font-family:'Spectral',serif; font-size:17px; font-weight:600; color:#2B2521;">
+        {{ emp.name }}
+      </span>
+    </div>
+
+    <div class="col-md-2">
+      {% if emp.employee_type == "PROVIDER" %}
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                     letter-spacing:0.06em; color:#8A3A2E; background:#F5E8E6; padding:3px 7px;">
+          Provider
+        </span>
+      {% elif emp.employee_type == "MEDICAL_ASSISTANT" %}
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                     letter-spacing:0.06em; color:#4A6B7A; background:#E6EFF3; padding:3px 7px;">
+          Med. Asst.
+        </span>
+      {% elif emp.employee_type == "FRONT_DESK" %}
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                     letter-spacing:0.06em; color:#5A5347; background:#EAE3D7; padding:3px 7px;">
+          Front Desk
+        </span>
+      {% else %}
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                     letter-spacing:0.06em; color:#2B2521; background:#E0D8CC; padding:3px 7px;">
+          Management
+        </span>
+      {% endif %}
+    </div>
+
+    <div class="col-md-2">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#2B2521;">
+        {{ emp.phone }}
+      </span>
+    </div>
+
+    <div class="col-md-2">
+      <span style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#2B2521;">
+        {{ emp.location|default:"Shared" }}
+      </span>
+    </div>
+
+    <div class="col-md-2">
+      {% if emp.is_active %}
+        <span class="relay-badge-approved">Active</span>
+      {% else %}
+        <span class="relay-badge-cancelled">Inactive</span>
+      {% endif %}
+    </div>
+
+    <div class="col-md-1">
+      <a href="{% url 'dashboard:employee_edit' emp.pk %}"
+         class="relay-btn"
+         style="font-size:12px; padding:5px 12px;">
+        Edit
+      </a>
+    </div>
+
+  </div>
+  {% empty %}
+  <div style="padding:40px 20px; text-align:center;">
+    <span style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#9A8D7E;">
+      No employees found.
+    </span>
+  </div>
+  {% endfor %}
+
+</div>
+
+{% endblock %}

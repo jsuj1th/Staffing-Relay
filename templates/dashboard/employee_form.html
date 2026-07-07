@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} Employee — Relay{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="d-flex align-items-center mb-4" style="gap:12px;">
+  <a href="{% url 'dashboard:employees' %}"
+     class="relay-btn"
+     style="font-family:'IBM Plex Mono',monospace; font-size:14px; padding:7px 14px;">
+    ← Back
+  </a>
+  <div>
+    <h2 class="page-title" style="margin-bottom:2px;">{{ action }} Employee</h2>
+    <span class="section-label">Fill in the details below</span>
+  </div>
+</div>
+
+<!-- Form Container -->
+<div style="max-width:600px; background:#FBF9F4; border:1px solid #E4DACB; border-radius:0; padding:32px;">
+  <form method="post" id="emp-form">
+    {% csrf_token %}
+
+    <!-- Full Name -->
+    <div class="mb-3">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase;
+                    letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+        Full Name *
+      </label>
+      <input type="text" name="name"
+             value="{{ employee.name|default:'' }}"
+             required
+             style="width:100%; font-family:'IBM Plex Sans',sans-serif; font-size:15px;
+                    color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA;
+                    border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+    </div>
+
+    <!-- Phone Number -->
+    <div class="mb-3">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase;
+                    letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:4px;">
+        Phone Number *
+      </label>
+      <span style="font-family:'IBM Plex Sans',sans-serif; font-size:12px; color:#9A8D7E;
+                   display:block; margin-bottom:8px;">
+        E.164 format: +12223334444
+      </span>
+      <input type="text" name="phone"
+             value="{{ employee.phone|default:'' }}"
+             placeholder="+12223334444"
+             required
+             style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px;
+                    color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA;
+                    border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+    </div>
+
+    <!-- Employee Type -->
+    <div class="mb-3">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase;
+                    letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+        Employee Type *
+      </label>
+      <select name="employee_type" id="emp-type" required
+              style="width:100%; font-family:'IBM Plex Sans',sans-serif; font-size:15px;
+                     color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA;
+                     border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+        <option value="">Select type...</option>
+        <option value="PROVIDER" {% if employee.employee_type == "PROVIDER" %}selected{% endif %}>Provider</option>
+        <option value="MEDICAL_ASSISTANT" {% if employee.employee_type == "MEDICAL_ASSISTANT" %}selected{% endif %}>Medical Assistant</option>
+        <option value="FRONT_DESK" {% if employee.employee_type == "FRONT_DESK" %}selected{% endif %}>Front Desk</option>
+        <option value="MANAGEMENT" {% if employee.employee_type == "MANAGEMENT" %}selected{% endif %}>Management</option>
+      </select>
+    </div>
+
+    <!-- Specific Location (Provider / MA) -->
+    <div id="specific-location" class="mb-3">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase;
+                    letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+        Location *
+      </label>
+      <select name="location_id"
+              style="width:100%; font-family:'IBM Plex Sans',sans-serif; font-size:15px;
+                     color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA;
+                     border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+        <option value="">Select location...</option>
+        {% for loc in locations %}
+          <option value="{{ loc.id }}" {% if employee.location_id == loc.id %}selected{% endif %}>
+            {{ loc.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Shared Locations (Front Desk / Management) -->
+    <div id="shared-locations" class="mb-3" style="display:none;">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase;
+                    letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+        Assigned Locations
+      </label>
+      <div style="border:1px solid #D6CBBA; background:#FBF9F4; padding:16px; display:flex; flex-direction:column; gap:10px;">
+        {% for loc in locations %}
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;
+                      font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#2B2521;">
+          <input type="checkbox" name="shared_location_ids"
+                 value="{{ loc.id }}" id="loc_{{ loc.id }}"
+                 {% if loc.id in current_shared %}checked{% endif %}
+                 style="width:15px; height:15px; accent-color:#8A3A2E; cursor:pointer;">
+          {{ loc.name }}
+        </label>
+        {% endfor %}
+      </div>
+      <span style="font-family:'IBM Plex Sans',sans-serif; font-size:12px; color:#9A8D7E;
+                   display:block; margin-top:6px;">
+        First checked location will be set as primary.
+      </span>
+    </div>
+
+    <!-- Active Toggle (edit mode only) -->
+    {% if employee %}
+    <div class="mb-3">
+      <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+        <input type="checkbox" name="is_active" id="is_active"
+               {% if employee.is_active %}checked{% endif %}
+               style="width:15px; height:15px; accent-color:#8A3A2E; cursor:pointer;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase;
+                     letter-spacing:0.08em; color:#9A8D7E;">
+          Active
+        </span>
+      </label>
+    </div>
+    {% endif %}
+
+    <!-- Divider -->
+    <div style="border-top:1px solid #E4DACB; margin:24px 0;"></div>
+
+    <!-- Actions -->
+    <div style="display:flex; gap:10px;">
+      <button type="submit" class="relay-btn relay-btn-primary">
+        Save Employee
+      </button>
+      <a href="{% url 'dashboard:employees' %}" class="relay-btn">
+        Cancel
+      </a>
+    </div>
+
+  </form>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const typeSelect = document.getElementById('emp-type');
+const specificDiv = document.getElementById('specific-location');
+const sharedDiv = document.getElementById('shared-locations');
+const sharedTypes = ['FRONT_DESK', 'MANAGEMENT'];
+
+function updateLocationFields() {
+  const val = typeSelect.value;
+  if (sharedTypes.includes(val)) {
+    specificDiv.style.display = 'none';
+    sharedDiv.style.display = '';
+  } else {
+    specificDiv.style.display = '';
+    sharedDiv.style.display = 'none';
+  }
+}
+typeSelect.addEventListener('change', updateLocationFields);
+updateLocationFields();
+</script>
+{% endblock %}
