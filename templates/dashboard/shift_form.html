@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} Shift — Relay{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4" style="gap:12px;">
+  <a href="{% url 'dashboard:shifts' %}" class="relay-btn" style="font-family:'IBM Plex Mono',monospace; font-size:14px; padding:7px 14px;">← Back</a>
+  <div>
+    <h2 class="page-title" style="margin-bottom:2px;">{{ action }} Shift</h2>
+    <span class="section-label">Fill in the details below</span>
+  </div>
+</div>
+
+<div style="max-width:600px; background:#FBF9F4; border:1px solid #E4DACB; border-radius:0; padding:32px;">
+  <form method="post">
+    {% csrf_token %}
+
+    {% if not shift %}
+    <div class="mb-3">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+        Employee *
+      </label>
+      <select name="employee_id" required
+              style="width:100%; font-family:'IBM Plex Sans',sans-serif; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+        <option value="">Select employee...</option>
+        {% for emp in employees %}
+          <option value="{{ emp.id }}" {% if request.GET.employee == emp.id|stringformat:"i" %}selected{% endif %}>
+            {{ emp.name }} — {{ emp.location.name|default:"Unassigned" }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% else %}
+    <div class="mb-3">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">Employee</label>
+      <div style="font-family:'IBM Plex Sans',sans-serif; font-size:15px; color:#2B2521;">{{ shift.employee.name }}</div>
+    </div>
+    {% endif %}
+
+    <div class="mb-3">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+        Date *
+      </label>
+      <input type="date" name="date" required
+             value="{% if shift %}{{ shift.date|date:'Y-m-d' }}{% else %}{{ preselect_date }}{% endif %}"
+             style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+    </div>
+
+    <div class="mb-3 d-flex gap-3">
+      <div style="flex:1;">
+        <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+          Start Time *
+        </label>
+        <input type="time" name="start_time" required
+               value="{{ shift.start_time|time:'H:i' }}"
+               style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+      </div>
+      <div style="flex:1;">
+        <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+          End Time *
+        </label>
+        <input type="time" name="end_time" required
+               value="{{ shift.end_time|time:'H:i' }}"
+               style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+      </div>
+    </div>
+
+    {% if not shift %}
+    <div class="mb-3">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+        Repeat for next N weeks
+      </label>
+      <input type="number" name="repeat_weeks" min="0" max="52" value="0"
+             style="width:120px; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+      <span style="font-family:'IBM Plex Sans',sans-serif; font-size:12px; color:#9A8D7E; display:block; margin-top:6px;">
+        0 = just this date. Creates one independent shift row per week, same weekday/time.
+      </span>
+    </div>
+    {% endif %}
+
+    <div style="border-top:1px solid #E4DACB; margin:24px 0;"></div>
+
+    <div style="display:flex; gap:10px;">
+      <button type="submit" class="relay-btn relay-btn-primary">Save Shift</button>
+      <a href="{% url 'dashboard:shifts' %}" class="relay-btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

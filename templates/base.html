@@ -589,6 +589,9 @@
       <a class="nav-link {% if 'leave' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'dashboard:leaves' %}">
         <i class="bi bi-calendar-check"></i>Leaves
       </a>
+      <a class="nav-link {% if 'shift' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'dashboard:shifts' %}">
+        <i class="bi bi-clock"></i>Shifts
+      </a>
       <a class="nav-link {% if 'sms' in request.resolver_match.url_name and request.resolver_match.url_name != 'sms_simulator' %}active{% endif %}" href="{% url 'dashboard:sms_logs' %}">
         <i class="bi bi-chat-dots"></i>SMS Logs
       </a>
