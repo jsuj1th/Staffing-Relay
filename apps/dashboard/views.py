@@ -277,7 +277,11 @@ def shift_day(request):
     today = timezone.localdate()
     location_id = request.GET.get("location", "")
     date_str = request.GET.get("date", "")
-    selected_date = date_str and date.fromisoformat(date_str) or today
+    try:
+        selected_date = date.fromisoformat(date_str) if date_str else today
+    except ValueError:
+        messages.error(request, "Invalid date; showing today instead.")
+        selected_date = today
 
     locations = Location.objects.all()
     selected_location = None
@@ -322,7 +326,6 @@ def shift_create(request):
         shift_date_str = request.POST.get("date", "")
         start_time = request.POST.get("start_time", "")
         end_time = request.POST.get("end_time", "")
-        repeat_weeks = int(request.POST.get("repeat_weeks") or 0)
 
         if not (employee_id and shift_date_str and start_time and end_time):
             messages.error(request, "Employee, date, start time, and end time are required.")
@@ -332,8 +335,27 @@ def shift_create(request):
                 "preselect_date": preselect_date,
             })
 
+        try:
+            repeat_weeks = int(request.POST.get("repeat_weeks") or 0)
+        except ValueError:
+            messages.error(request, "Repeat weeks must be a number.")
+            return render(request, "dashboard/shift_form.html", {
+                "locations": locations, "action": "Add",
+                "preselect_location_id": preselect_location_id,
+                "preselect_date": preselect_date,
+            })
+
+        try:
+            shift_date = date.fromisoformat(shift_date_str)
+        except ValueError:
+            messages.error(request, "Invalid date.")
+            return render(request, "dashboard/shift_form.html", {
+                "locations": locations, "action": "Add",
+                "preselect_location_id": preselect_location_id,
+                "preselect_date": preselect_date,
+            })
+
         employee = get_object_or_404(Employee, pk=employee_id)
-        shift_date = date.fromisoformat(shift_date_str)
 
         Shift.objects.create(
             employee=employee, date=shift_date,
@@ -367,7 +389,14 @@ def shift_edit(request, pk):
     shift = get_object_or_404(Shift, pk=pk)
 
     if request.method == "POST":
-        shift.date = date.fromisoformat(request.POST.get("date", str(shift.date)))
+        try:
+            shift.date = date.fromisoformat(request.POST.get("date", str(shift.date)))
+        except ValueError:
+            messages.error(request, "Invalid date.")
+            return render(request, "dashboard/shift_form.html", {
+                "shift": shift, "action": "Edit",
+                "locations": Location.objects.all(),
+            })
         shift.start_time = request.POST.get("start_time", shift.start_time)
         shift.end_time = request.POST.get("end_time", shift.end_time)
         shift.save()
