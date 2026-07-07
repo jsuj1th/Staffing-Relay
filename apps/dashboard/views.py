@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import date, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
@@ -14,6 +15,7 @@ from apps.leaves.models import Leave
 from apps.messaging.models import SmsLog
 from apps.messaging.sms import send_sms
 from apps.leaves.ratio import get_active_counts
+from apps.shifts.models import Shift
 
 logger = logging.getLogger(__name__)
 
@@ -268,3 +270,127 @@ def location_detail(request, pk):
         "active_mas": ma,
         "today": today,
     })
+
+
+@login_required
+def shift_day(request):
+    today = timezone.localdate()
+    location_id = request.GET.get("location", "")
+    date_str = request.GET.get("date", "")
+    selected_date = date_str and date.fromisoformat(date_str) or today
+
+    locations = Location.objects.all()
+    selected_location = None
+    employees = Employee.objects.none()
+    shifts_by_employee = {}
+
+    if location_id:
+        selected_location = get_object_or_404(Location, pk=location_id)
+        employees = Employee.objects.filter(
+            location=selected_location,
+            employee_type__in=[Employee.Type.PROVIDER, Employee.Type.MEDICAL_ASSISTANT],
+            is_active=True,
+        ).order_by("name")
+        day_shifts = Shift.objects.filter(
+            employee__in=employees, date=selected_date
+        ).select_related("employee")
+        for shift in day_shifts:
+            shifts_by_employee.setdefault(shift.employee_id, []).append(shift)
+
+    rows = [
+        {"employee": emp, "shifts": shifts_by_employee.get(emp.id, [])}
+        for emp in employees
+    ]
+
+    return render(request, "dashboard/shifts.html", {
+        "locations": locations,
+        "selected_location": selected_location,
+        "selected_date": selected_date,
+        "rows": rows,
+        "today": today,
+    })
+
+
+@login_required
+def shift_create(request):
+    locations = Location.objects.all()
+    preselect_location_id = request.GET.get("location", "")
+    preselect_date = request.GET.get("date", "")
+
+    if request.method == "POST":
+        employee_id = request.POST.get("employee_id")
+        shift_date_str = request.POST.get("date", "")
+        start_time = request.POST.get("start_time", "")
+        end_time = request.POST.get("end_time", "")
+        repeat_weeks = int(request.POST.get("repeat_weeks") or 0)
+
+        if not (employee_id and shift_date_str and start_time and end_time):
+            messages.error(request, "Employee, date, start time, and end time are required.")
+            return render(request, "dashboard/shift_form.html", {
+                "locations": locations, "action": "Add",
+                "preselect_location_id": preselect_location_id,
+                "preselect_date": preselect_date,
+            })
+
+        employee = get_object_or_404(Employee, pk=employee_id)
+        shift_date = date.fromisoformat(shift_date_str)
+
+        Shift.objects.create(
+            employee=employee, date=shift_date,
+            start_time=start_time, end_time=end_time,
+            created_by=request.user,
+        )
+        for week in range(1, repeat_weeks + 1):
+            Shift.objects.create(
+                employee=employee, date=shift_date + timedelta(weeks=week),
+                start_time=start_time, end_time=end_time,
+                created_by=request.user,
+            )
+
+        logger.info("Shift created: employee=%s date=%s repeat_weeks=%d", employee.name, shift_date, repeat_weeks)
+        messages.success(request, f"Shift added for {employee.name}" + (f" (repeated {repeat_weeks} weeks)" if repeat_weeks else "") + ".")
+        return redirect(f"/dashboard/shifts/?location={employee.location_id}&date={shift_date_str}")
+
+    employees = Employee.objects.filter(
+        employee_type__in=[Employee.Type.PROVIDER, Employee.Type.MEDICAL_ASSISTANT],
+        is_active=True,
+    ).select_related("location").order_by("name")
+    return render(request, "dashboard/shift_form.html", {
+        "locations": locations, "employees": employees, "action": "Add",
+        "preselect_location_id": preselect_location_id,
+        "preselect_date": preselect_date,
+    })
+
+
+@login_required
+def shift_edit(request, pk):
+    shift = get_object_or_404(Shift, pk=pk)
+
+    if request.method == "POST":
+        shift.date = date.fromisoformat(request.POST.get("date", str(shift.date)))
+        shift.start_time = request.POST.get("start_time", shift.start_time)
+        shift.end_time = request.POST.get("end_time", shift.end_time)
+        shift.save()
+        logger.info("Shift updated: id=%d employee=%s", shift.id, shift.employee.name)
+        messages.success(request, "Shift updated.")
+        return redirect(f"/dashboard/shifts/?location={shift.employee.location_id}&date={shift.date}")
+
+    return render(request, "dashboard/shift_form.html", {
+        "shift": shift, "action": "Edit",
+        "locations": Location.objects.all(),
+    })
+
+
+@login_required
+def shift_delete(request, pk):
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    shift = get_object_or_404(Shift, pk=pk)
+    location_id = shift.employee.location_id
+    shift_date = shift.date
+    employee_name = shift.employee.name
+    shift.delete()
+    logger.info("Shift deleted: employee=%s date=%s", employee_name, shift_date)
+    messages.success(request, f"Shift removed for {employee_name}.")
+    return redirect(f"/dashboard/shifts/?location={location_id}&date={shift_date}")
