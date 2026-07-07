@@ -289,7 +289,11 @@ def shift_day(request):
     shifts_by_employee = {}
 
     if location_id:
-        selected_location = get_object_or_404(Location, pk=location_id)
+        try:
+            selected_location = get_object_or_404(Location, pk=int(location_id))
+        except ValueError:
+            selected_location = None
+    if selected_location:
         employees = Employee.objects.filter(
             location=selected_location,
             employee_type__in=[Employee.Type.PROVIDER, Employee.Type.MEDICAL_ASSISTANT],
@@ -320,6 +324,10 @@ def shift_create(request):
     locations = Location.objects.all()
     preselect_location_id = request.GET.get("location", "")
     preselect_date = request.GET.get("date", "")
+    employees = Employee.objects.filter(
+        employee_type__in=[Employee.Type.PROVIDER, Employee.Type.MEDICAL_ASSISTANT],
+        is_active=True,
+    ).select_related("location").order_by("name")
 
     if request.method == "POST":
         employee_id = request.POST.get("employee_id")
@@ -330,7 +338,7 @@ def shift_create(request):
         if not (employee_id and shift_date_str and start_time and end_time):
             messages.error(request, "Employee, date, start time, and end time are required.")
             return render(request, "dashboard/shift_form.html", {
-                "locations": locations, "action": "Add",
+                "locations": locations, "employees": employees, "action": "Add",
                 "preselect_location_id": preselect_location_id,
                 "preselect_date": preselect_date,
             })
@@ -340,17 +348,18 @@ def shift_create(request):
         except ValueError:
             messages.error(request, "Repeat weeks must be a number.")
             return render(request, "dashboard/shift_form.html", {
-                "locations": locations, "action": "Add",
+                "locations": locations, "employees": employees, "action": "Add",
                 "preselect_location_id": preselect_location_id,
                 "preselect_date": preselect_date,
             })
+        repeat_weeks = min(max(repeat_weeks, 0), 52)
 
         try:
             shift_date = date.fromisoformat(shift_date_str)
         except ValueError:
             messages.error(request, "Invalid date.")
             return render(request, "dashboard/shift_form.html", {
-                "locations": locations, "action": "Add",
+                "locations": locations, "employees": employees, "action": "Add",
                 "preselect_location_id": preselect_location_id,
                 "preselect_date": preselect_date,
             })
@@ -373,10 +382,6 @@ def shift_create(request):
         messages.success(request, f"Shift added for {employee.name}" + (f" (repeated {repeat_weeks} weeks)" if repeat_weeks else "") + ".")
         return redirect(f"/dashboard/shifts/?location={employee.location_id}&date={shift_date_str}")
 
-    employees = Employee.objects.filter(
-        employee_type__in=[Employee.Type.PROVIDER, Employee.Type.MEDICAL_ASSISTANT],
-        is_active=True,
-    ).select_related("location").order_by("name")
     return render(request, "dashboard/shift_form.html", {
         "locations": locations, "employees": employees, "action": "Add",
         "preselect_location_id": preselect_location_id,

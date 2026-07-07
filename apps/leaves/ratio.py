@@ -36,6 +36,10 @@ def get_active_counts(location_id: int, start_date: date, end_date: date, exclud
 
     on_leave_ids = set(on_leave_qs.values_list("employee_id", flat=True))
 
+    # NOTE: this counts an employee as on-duty if they have a shift on ANY
+    # day within [start_date, end_date], not per-date. That's only correct
+    # for callers that pass single-day ranges (e.g. evaluate_leave, which
+    # iterates day-by-day). A multi-day range here would overcount.
     scheduled_ids = set(
         Shift.objects.filter(
             employee__location_id=location_id,
