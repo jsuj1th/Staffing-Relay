@@ -16,11 +16,13 @@ logger = logging.getLogger(__name__)
 
 def get_active_counts(location_id: int, start_date: date, end_date: date, exclude_employee_id: int = None):
     """
-    Returns (provider_count, ma_count) of employees NOT on APPROVED/EXTREME leave
-    for any day in the given range at the given location.
+    Returns (provider_count, ma_count) of employees who are is_active, NOT on
+    APPROVED/EXTREME leave for any day in the given range, AND have at least
+    one Shift on a day in the given range at the given location.
     """
     from apps.leaves.models import Leave
     from apps.accounts.models import Employee
+    from apps.shifts.models import Shift
 
     # Employees at this location on leave during the date range
     on_leave_qs = Leave.objects.filter(
@@ -34,7 +36,17 @@ def get_active_counts(location_id: int, start_date: date, end_date: date, exclud
 
     on_leave_ids = set(on_leave_qs.values_list("employee_id", flat=True))
 
-    base_qs = Employee.objects.filter(location_id=location_id, is_active=True)
+    scheduled_ids = set(
+        Shift.objects.filter(
+            employee__location_id=location_id,
+            date__gte=start_date,
+            date__lte=end_date,
+        ).values_list("employee_id", flat=True)
+    )
+
+    base_qs = Employee.objects.filter(
+        location_id=location_id, is_active=True, id__in=scheduled_ids
+    )
 
     providers = base_qs.filter(
         employee_type=Employee.Type.PROVIDER
