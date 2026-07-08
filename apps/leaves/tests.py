@@ -107,15 +107,15 @@ class RatioEngineTests(TestCase):
         p_excl, _ = get_active_counts(self.location.id, self.today, self.today, exclude_employee_id=self.providers[0].id)
         self.assertEqual(p_excl, 3)
 
-    def test_no_shifts_means_nobody_counted(self):
-        """A date with zero Shift rows anywhere → nobody is on duty."""
+    def test_no_shifts_falls_back_to_all_active(self):
+        """A date with zero Shift rows → not scheduled yet → count everyone."""
         far_future = self.today + timedelta(days=200)
         p, ma = get_active_counts(self.location.id, far_future, far_future)
-        self.assertEqual(p, 0)
-        self.assertEqual(ma, 0)
+        self.assertEqual(p, 3)
+        self.assertEqual(ma, 4)
 
-    def test_only_scheduled_employees_counted(self):
-        """Employees without a shift on the date don't count, even if is_active."""
+    def test_only_scheduled_employees_counted_once_shifts_exist(self):
+        """Once any shift exists for the date, unscheduled employees drop off."""
         target_date = self.today + timedelta(days=201)
         Shift.objects.create(
             employee=self.providers[0], date=target_date,

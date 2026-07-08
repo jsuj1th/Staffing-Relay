@@ -16,9 +16,15 @@ logger = logging.getLogger(__name__)
 
 def get_active_counts(location_id: int, start_date: date, end_date: date, exclude_employee_id: int = None):
     """
-    Returns (provider_count, ma_count) of employees who are is_active, NOT on
-    APPROVED/EXTREME leave for any day in the given range, AND have at least
-    one Shift on a day in the given range at the given location.
+    Returns (provider_count, ma_count) of active employees at the location who
+    are NOT on APPROVED/EXTREME leave for any day in the given range.
+
+    Shift-aware with a per-range fallback: if any Shift exists for the location
+    within the range, only employees who have a shift there are counted (an
+    unscheduled employee is off duty). But if NO shift exists for the range at
+    all — i.e. that day hasn't been scheduled yet — every active employee is
+    counted, matching pre-shifts behavior. This keeps un-scheduled days from
+    auto-rejecting leaves rather than treating them as zero-staffed.
     """
     from apps.leaves.models import Leave
     from apps.accounts.models import Employee
@@ -36,7 +42,7 @@ def get_active_counts(location_id: int, start_date: date, end_date: date, exclud
 
     on_leave_ids = set(on_leave_qs.values_list("employee_id", flat=True))
 
-    # NOTE: this counts an employee as on-duty if they have a shift on ANY
+    # NOTE: this treats an employee as on-duty if they have a shift on ANY
     # day within [start_date, end_date], not per-date. That's only correct
     # for callers that pass single-day ranges (e.g. evaluate_leave, which
     # iterates day-by-day). A multi-day range here would overcount.
@@ -48,9 +54,11 @@ def get_active_counts(location_id: int, start_date: date, end_date: date, exclud
         ).values_list("employee_id", flat=True)
     )
 
-    base_qs = Employee.objects.filter(
-        location_id=location_id, is_active=True, id__in=scheduled_ids
-    )
+    base_qs = Employee.objects.filter(location_id=location_id, is_active=True)
+    # Fallback: only narrow to scheduled employees when shifts exist for the
+    # range. No shifts at all → day not scheduled yet → count everyone.
+    if scheduled_ids:
+        base_qs = base_qs.filter(id__in=scheduled_ids)
 
     providers = base_qs.filter(
         employee_type=Employee.Type.PROVIDER
