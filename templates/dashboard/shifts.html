@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Shifts — Relay{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h2 class="page-title">Shifts</h2>
+  <div class="section-label" style="margin-top:4px">who's scheduled, by location and date</div>
+</div>
+
+<div style="background:#F1EADD;border:1px solid #E4DACB;padding:14px 18px;margin-bottom:20px;">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-auto">
+      <label style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#9A8D7E;display:block;margin-bottom:6px;">Location</label>
+      <select name="location" style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;background:#FBF9F4;border:1px solid #D6CBBA;border-radius:0;color:#2B2521;padding:6px 10px;">
+        <option value="">Select location...</option>
+        {% for loc in locations %}
+          <option value="{{ loc.id }}" {% if selected_location.id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#9A8D7E;display:block;margin-bottom:6px;">Date</label>
+      <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}"
+             style="font-family:'IBM Plex Mono',monospace;font-size:14px;background:#FBF9F4;border:1px solid #D6CBBA;border-radius:0;color:#2B2521;padding:6px 10px;">
+    </div>
+    <div class="col-auto d-flex gap-2">
+      <button type="submit" class="relay-btn">View</button>
+      {% if selected_location %}
+      <a class="relay-btn relay-btn-primary" href="{% url 'dashboard:shift_create' %}?location={{ selected_location.id }}&date={{ selected_date|date:'Y-m-d' }}">+ Add Shift</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+{% if not selected_location %}
+  <div style="background:#F1EADD;border:1px solid #E4DACB;padding:40px;text-align:center;font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#9A8D7E;">
+    Select a location and date to view shifts.
+  </div>
+{% else %}
+  <div class="row g-0" style="padding:0 18px 8px 18px;">
+    <div class="col-md-4" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Employee</div>
+    <div class="col-md-6" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Shift(s)</div>
+    <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#B0A596;letter-spacing:0.06em;text-transform:uppercase;">Actions</div>
+  </div>
+
+  {% for row in rows %}
+  <div class="row g-0 align-items-center" style="background:#F1EADD;border-left:4px solid {% if row.shifts %}#5F7A52{% else %}#9A8D7E{% endif %};margin-bottom:8px;padding:14px 18px;">
+    <div class="col-md-4">
+      <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ row.employee.name }}</div>
+      <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ row.employee.get_employee_type_display }}</div>
+    </div>
+    <div class="col-md-6" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
+      {% for shift in row.shifts %}
+        {{ shift.start_time|time:"H:i" }}–{{ shift.end_time|time:"H:i" }}
+        <a href="{% url 'dashboard:shift_edit' shift.pk %}" class="relay-btn" style="font-size:12px;padding:3px 8px;">Edit</a>
+        <form method="post" action="{% url 'dashboard:shift_delete' shift.pk %}" class="d-inline">
+          {% csrf_token %}<button type="submit" class="relay-btn" style="font-size:12px;padding:3px 8px;">Remove</button>
+        </form>
+        <br>
+      {% empty %}
+        <span style="color:#9A8D7E;">Not scheduled</span>
+      {% endfor %}
+    </div>
+    <div class="col-md-2">
+      <a class="relay-btn" href="{% url 'dashboard:shift_create' %}?location={{ selected_location.id }}&date={{ selected_date|date:'Y-m-d' }}&employee={{ row.employee.id }}">+ Shift</a>
+    </div>
+  </div>
+  {% empty %}
+  <div style="background:#F1EADD;border:1px solid #E4DACB;padding:40px;text-align:center;font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#9A8D7E;">
+    No Provider/MA employees at this location.
+  </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

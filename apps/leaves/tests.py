@@ -8,6 +8,7 @@ from apps.accounts.models import Employee
 from apps.locations.models import Location
 from apps.leaves.models import Leave
 from apps.leaves.ratio import get_active_counts, evaluate_leave
+from apps.shifts.models import Shift
 
 
 class RatioEngineTests(TestCase):
@@ -38,6 +39,18 @@ class RatioEngineTests(TestCase):
 
         self.today = date.today()
         self.tomorrow = self.today + timedelta(days=1)
+
+        # Give every employee a shift across every relative date used anywhere
+        # in this file (today, tomorrow, today+2, today+10, today+30, etc.)
+        # so pre-existing tests keep exercising "on duty" employees under the
+        # new shift-based counting rule.
+        for offset in range(-1, 40):
+            shift_date = self.today + timedelta(days=offset)
+            for emp in self.providers + self.mas:
+                Shift.objects.create(
+                    employee=emp, date=shift_date,
+                    start_time="09:00", end_time="17:00",
+                )
 
     # --- get_active_counts ---
 
@@ -93,6 +106,28 @@ class RatioEngineTests(TestCase):
         # → they appear active → count is 3
         p_excl, _ = get_active_counts(self.location.id, self.today, self.today, exclude_employee_id=self.providers[0].id)
         self.assertEqual(p_excl, 3)
+
+    def test_no_shifts_falls_back_to_all_active(self):
+        """A date with zero Shift rows → not scheduled yet → count everyone."""
+        far_future = self.today + timedelta(days=200)
+        p, ma = get_active_counts(self.location.id, far_future, far_future)
+        self.assertEqual(p, 3)
+        self.assertEqual(ma, 4)
+
+    def test_only_scheduled_employees_counted_once_shifts_exist(self):
+        """Once any shift exists for the date, unscheduled employees drop off."""
+        target_date = self.today + timedelta(days=201)
+        Shift.objects.create(
+            employee=self.providers[0], date=target_date,
+            start_time="09:00", end_time="17:00",
+        )
+        Shift.objects.create(
+            employee=self.mas[0], date=target_date,
+            start_time="09:00", end_time="17:00",
+        )
+        p, ma = get_active_counts(self.location.id, target_date, target_date)
+        self.assertEqual(p, 1)
+        self.assertEqual(ma, 1)
 
     # --- evaluate_leave: FRONT_DESK / MANAGEMENT auto-approved ---
 

@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "apps.messaging",
     "apps.dashboard",
     "apps.loyalty",
+    "apps.shifts",
 ]
 
 MIDDLEWARE = [

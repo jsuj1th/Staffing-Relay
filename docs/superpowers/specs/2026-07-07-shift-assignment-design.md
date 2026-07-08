@@ -46,20 +46,23 @@ changes its employee filter:
 - **After:** count `is_active=True` employees of the relevant type at the
   location who additionally have at least one `Shift` row for that date.
 
-Rule, stated plainly:
-- Employee has a `Shift` row on a given date → counts as on duty for that
-  entire date (shift hours are not compared against anything; a leave is
-  date-only, so there's no time-of-day matching to do).
-- Employee has no `Shift` row on a given date → does not count as on duty,
-  regardless of whether that's because nobody at the location has shifts
-  for that date yet, or because that specific employee just isn't scheduled.
+Rule, stated plainly (with a per-date fallback):
+- The location+date has **at least one** `Shift` row → count only employees
+  who have a shift that date. An employee with a shift counts as on duty for
+  the entire date (shift hours are not compared against anything; a leave is
+  date-only, so there's no time-of-day matching). An active employee with no
+  shift that date does not count.
+- The location+date has **no** `Shift` rows at all → that day isn't scheduled
+  yet, so fall back to pre-shifts behavior: every active PROVIDER/MA at the
+  location counts as on duty.
 
-No fallback to "all active employees" when a location has zero shifts for a
-date — that day is genuinely zero-staffed for ratio purposes until shifts
-are entered. This is a behavior change to `evaluate_leave`/`get_active_counts`
-callers: locations that haven't started using shifts yet will see ratio
-checks reject/auto-approve everything as if nobody is on duty, until shifts
-are populated for those locations.
+The fallback is what keeps the rollout safe: until a manager actually starts
+scheduling a given day, that day behaves exactly as it did before shifts
+existed, so leaves are never auto-rejected merely because no schedule has
+been entered. Shift-based counting only kicks in for a date once someone has
+scheduled it. (An earlier draft treated an unscheduled day as zero-staffed;
+that was reversed because it would auto-reject all Provider/MA leaves at any
+location that hadn't yet adopted shifts.)
 
 This only affects PROVIDER/MEDICAL_ASSISTANT counting. FRONT_DESK/MANAGEMENT
 employees already skip ratio checks entirely in `evaluate_leave` and are
