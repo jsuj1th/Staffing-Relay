@@ -79,80 +79,107 @@
     <div class="col-md-2">
       <span class="section-label">Phone</span>
     </div>
-    <div class="col-md-2">
+    <div class="col-md-1">
       <span class="section-label">Location</span>
     </div>
     <div class="col-md-2">
-      <span class="section-label">Status</span>
+      <span class="section-label">Leaves</span>
     </div>
-    <div class="col-md-1">
-      <span class="section-label">&nbsp;</span>
+    <div class="col-md-2">
+      <span class="section-label">Actions</span>
     </div>
   </div>
 
   <!-- Employee Rows -->
-  {% for emp in employees %}
-  <div class="row g-0 align-items-center"
-       style="padding:14px 20px; border-bottom:1px solid #E4DACB; background:#F1EADD;">
+  {% for item in employees %}
+  <div style="padding:14px 20px; border-bottom:1px solid #E4DACB; background:#F1EADD;">
+    <div class="row g-0 align-items-start">
+      <div class="col-md-3">
+        <a href="{% url 'dashboard:employee_detail' item.emp.pk %}" style="font-family:'Spectral',serif; font-size:17px; font-weight:600; color:#8A3A2E; text-decoration:none; cursor:pointer;">
+          {{ item.emp.name }}
+        </a>
+        <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#9A8D7E; margin-top:4px;">
+          {% if item.emp.is_active %}
+            <span class="relay-badge-approved">Active</span>
+          {% else %}
+            <span class="relay-badge-cancelled">Inactive</span>
+          {% endif %}
+        </div>
+      </div>
 
-    <div class="col-md-3">
-      <span style="font-family:'Spectral',serif; font-size:17px; font-weight:600; color:#2B2521;">
-        {{ emp.name }}
-      </span>
-    </div>
+      <div class="col-md-2">
+        {% if item.emp.employee_type == "PROVIDER" %}
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                       letter-spacing:0.06em; color:#8A3A2E; background:#F5E8E6; padding:3px 7px;">
+            Provider
+          </span>
+        {% elif item.emp.employee_type == "MEDICAL_ASSISTANT" %}
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                       letter-spacing:0.06em; color:#4A6B7A; background:#E6EFF3; padding:3px 7px;">
+            Med. Asst.
+          </span>
+        {% elif item.emp.employee_type == "FRONT_DESK" %}
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                       letter-spacing:0.06em; color:#5A5347; background:#EAE3D7; padding:3px 7px;">
+            Front Desk
+          </span>
+        {% else %}
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
+                       letter-spacing:0.06em; color:#2B2521; background:#E0D8CC; padding:3px 7px;">
+            Management
+          </span>
+        {% endif %}
+      </div>
 
-    <div class="col-md-2">
-      {% if emp.employee_type == "PROVIDER" %}
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
-                     letter-spacing:0.06em; color:#8A3A2E; background:#F5E8E6; padding:3px 7px;">
-          Provider
+      <div class="col-md-2">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#2B2521;">
+          {{ item.emp.phone }}
         </span>
-      {% elif emp.employee_type == "MEDICAL_ASSISTANT" %}
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
-                     letter-spacing:0.06em; color:#4A6B7A; background:#E6EFF3; padding:3px 7px;">
-          Med. Asst.
+      </div>
+
+      <div class="col-md-1">
+        <span style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#2B2521;">
+          {{ item.emp.location|default:"Shared" }}
         </span>
-      {% elif emp.employee_type == "FRONT_DESK" %}
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
-                     letter-spacing:0.06em; color:#5A5347; background:#EAE3D7; padding:3px 7px;">
-          Front Desk
-        </span>
-      {% else %}
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase;
-                     letter-spacing:0.06em; color:#2B2521; background:#E0D8CC; padding:3px 7px;">
-          Management
-        </span>
-      {% endif %}
-    </div>
+      </div>
 
-    <div class="col-md-2">
-      <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#2B2521;">
-        {{ emp.phone }}
-      </span>
-    </div>
+      <div class="col-md-2">
+        <div style="display:flex; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:12px;">
+          <div>
+            <span style="color:#9A8D7E;">This week:</span>
+            <span style="font-weight:600; color:#2B2521;">{{ item.leaves_week }}</span>
+          </div>
+          <div>
+            <span style="color:#9A8D7E;">This month:</span>
+            <span style="font-weight:600; color:#2B2521;">{{ item.leaves_month }}</span>
+          </div>
+          <div>
+            <span style="color:#9A8D7E;">Total:</span>
+            <span style="font-weight:600; color:#2B2521;">{{ item.leaves_total }}</span>
+          </div>
+        </div>
+      </div>
 
-    <div class="col-md-2">
-      <span style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#2B2521;">
-        {{ emp.location|default:"Shared" }}
-      </span>
+      <div class="col-md-2 d-flex flex-wrap gap-1">
+        <a href="{% url 'dashboard:employee_edit' item.emp.pk %}"
+           class="relay-btn"
+           style="font-size:12px; padding:5px 12px;">
+          Edit
+        </a>
+        {% if item.emp.is_active %}
+        <form method="post" action="{% url 'dashboard:employee_toggle_active' item.emp.pk %}"
+              onsubmit="return confirm('Remove {{ item.emp.name|escapejs }}? They will be deactivated and drop out of ratio counts and shift assignment. You can restore them later.');">
+          {% csrf_token %}
+          <button type="submit" class="relay-btn" style="font-size:12px; padding:5px 12px;">Remove</button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'dashboard:employee_toggle_active' item.emp.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="relay-btn" style="font-size:12px; padding:5px 12px;">Restore</button>
+        </form>
+        {% endif %}
+      </div>
     </div>
-
-    <div class="col-md-2">
-      {% if emp.is_active %}
-        <span class="relay-badge-approved">Active</span>
-      {% else %}
-        <span class="relay-badge-cancelled">Inactive</span>
-      {% endif %}
-    </div>
-
-    <div class="col-md-1">
-      <a href="{% url 'dashboard:employee_edit' emp.pk %}"
-         class="relay-btn"
-         style="font-size:12px; padding:5px 12px;">
-        Edit
-      </a>
-    </div>
-
   </div>
   {% empty %}
   <div style="padding:40px 20px; text-align:center;">

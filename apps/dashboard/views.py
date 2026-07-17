@@ -81,9 +81,40 @@ def employee_list(request):
         qs = qs.filter(employee_type=type_filter)
     if location_filter:
         qs = qs.filter(location_id=location_filter)
+
+    today = timezone.localdate()
+    week_ago = today - timedelta(days=7)
+    month_ago = today - timedelta(days=30)
+
+    # Add leave statistics to each employee
+    employees_with_stats = []
+    for emp in qs:
+        leaves_week = Leave.objects.filter(
+            employee=emp,
+            end_date__gte=week_ago,
+            start_date__lte=today,
+            status__in=[Leave.Status.APPROVED, Leave.Status.EXTREME],
+        ).count()
+        leaves_month = Leave.objects.filter(
+            employee=emp,
+            end_date__gte=month_ago,
+            start_date__lte=today,
+            status__in=[Leave.Status.APPROVED, Leave.Status.EXTREME],
+        ).count()
+        leaves_total = Leave.objects.filter(
+            employee=emp,
+            status__in=[Leave.Status.APPROVED, Leave.Status.EXTREME],
+        ).count()
+        employees_with_stats.append({
+            "emp": emp,
+            "leaves_week": leaves_week,
+            "leaves_month": leaves_month,
+            "leaves_total": leaves_total,
+        })
+
     locations = Location.objects.all()
     return render(request, "dashboard/employees.html", {
-        "employees": qs,
+        "employees": employees_with_stats,
         "locations": locations,
         "type_filter": type_filter,
         "location_filter": location_filter,
@@ -183,20 +214,51 @@ def employee_edit(request, pk):
 
 
 @login_required
+def employee_toggle_active(request, pk):
+    """Soft-delete: deactivate an active employee (or restore an inactive one).
+
+    Deactivating drops them from ratio counts, shift assignment, and leave
+    dropdowns while preserving all leave/SMS history — reversible via restore.
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    emp = get_object_or_404(Employee, pk=pk)
+    emp.is_active = not emp.is_active
+    emp.save(update_fields=["is_active"])
+    action = "restored" if emp.is_active else "removed"
+    logger.info("Employee %s: id=%d name=%s by=%s", action, emp.id, emp.name, request.user)
+    messages.success(request, f"{emp.name} {action}.")
+    return redirect("dashboard:employees")
+
+
+@login_required
 def leave_list(request):
     qs = Leave.objects.select_related("employee", "employee__location")
     status_filter = request.GET.get("status", "")
     location_filter = request.GET.get("location", "")
+    period_filter = request.GET.get("period", "")
+
     if status_filter:
         qs = qs.filter(status=status_filter)
     if location_filter:
         qs = qs.filter(employee__location_id=location_filter)
+
+    today = timezone.localdate()
+    if period_filter == "week":
+        cutoff = today - timedelta(days=7)
+        qs = qs.filter(end_date__gte=cutoff, start_date__lte=today)
+    elif period_filter == "month":
+        cutoff = today - timedelta(days=30)
+        qs = qs.filter(end_date__gte=cutoff, start_date__lte=today)
+
     locations = Location.objects.all()
     return render(request, "dashboard/leaves.html", {
         "leaves": qs.order_by("-created_at")[:200],
         "locations": locations,
         "status_filter": status_filter,
         "location_filter": location_filter,
+        "period_filter": period_filter,
         "leave_statuses": Leave.Status.choices,
     })
 
@@ -428,3 +490,111 @@ def shift_delete(request, pk):
     logger.info("Shift deleted: employee=%s date=%s", employee_name, shift_date)
     messages.success(request, f"Shift removed for {employee_name}.")
     return redirect(f"/dashboard/shifts/?location={location_id}&date={shift_date}")
+
+
+@login_required
+def absence_create(request):
+    """Admin manually records an employee absence (no-show, emergency, etc)."""
+    locations = Location.objects.all()
+    employees = Employee.objects.filter(is_active=True).select_related("location").order_by("name")
+
+    if request.method == "POST":
+        employee_id = request.POST.get("employee_id")
+        absence_date_str = request.POST.get("absence_date", "")
+        reason = request.POST.get("reason", "").strip()
+        is_urgent = request.POST.get("is_urgent") == "on"
+
+        if not (employee_id and absence_date_str and reason):
+            messages.error(request, "Employee, date, and reason are required.")
+            return render(request, "dashboard/absence_form.html", {
+                "locations": locations,
+                "employees": employees,
+            })
+
+        try:
+            absence_date = date.fromisoformat(absence_date_str)
+        except ValueError:
+            messages.error(request, "Invalid date.")
+            return render(request, "dashboard/absence_form.html", {
+                "locations": locations,
+                "employees": employees,
+            })
+
+        if absence_date > timezone.localdate():
+            messages.error(request, "Cannot record absence for future dates.")
+            return render(request, "dashboard/absence_form.html", {
+                "locations": locations,
+                "employees": employees,
+            })
+
+        employee = get_object_or_404(Employee, pk=employee_id)
+
+        # Create a leave record marked as "unplanned absence"
+        # Use internal_note to track that admin recorded this
+        leave = Leave.objects.create(
+            employee=employee,
+            start_date=absence_date,
+            end_date=absence_date,
+            reason=reason,
+            status=Leave.Status.APPROVED,  # Auto-approved since admin recorded it
+            internal_note=f"[ADMIN RECORDED] {'URGENT: ' if is_urgent else ''}Absence recorded by {request.user.username}",
+            approved_by=request.user,
+        )
+
+        logger.info("Absence recorded: employee=%s date=%s urgent=%s by=%s", employee.name, absence_date, is_urgent, request.user)
+        messages.success(request, f"Absence recorded for {employee.name} on {absence_date}.")
+        return redirect("dashboard:leaves")
+
+    return render(request, "dashboard/absence_form.html", {
+        "locations": locations,
+        "employees": employees,
+    })
+
+
+@login_required
+def employee_detail(request, pk):
+    """Employee profile with leave insights and history."""
+    employee = get_object_or_404(Employee, pk=pk)
+    today = timezone.localdate()
+    week_ago = today - timedelta(days=7)
+    month_ago = today - timedelta(days=30)
+
+    # Leave statistics
+    leaves_approved = Leave.objects.filter(
+        employee=employee,
+        status__in=[Leave.Status.APPROVED, Leave.Status.EXTREME],
+    )
+
+    leaves_week = leaves_approved.filter(
+        end_date__gte=week_ago,
+        start_date__lte=today,
+    ).count()
+
+    leaves_month = leaves_approved.filter(
+        end_date__gte=month_ago,
+        start_date__lte=today,
+    ).count()
+
+    leaves_total = leaves_approved.count()
+
+    # Recent leaves (last 30 days)
+    recent_leaves = Leave.objects.filter(employee=employee).order_by("-created_at")[:30]
+
+    # Leave breakdown by status
+    leave_stats = {
+        "approved": Leave.objects.filter(employee=employee, status=Leave.Status.APPROVED).count(),
+        "extreme": Leave.objects.filter(employee=employee, status=Leave.Status.EXTREME).count(),
+        "rejected": Leave.objects.filter(employee=employee, status=Leave.Status.REJECTED).count(),
+        "pending": Leave.objects.filter(employee=employee, status=Leave.Status.PENDING).count(),
+        "cancelled": Leave.objects.filter(employee=employee, status=Leave.Status.CANCELLED).count(),
+    }
+
+    return render(request, "dashboard/employee_detail.html", {
+        "employee": employee,
+        "leaves_week": leaves_week,
+        "leaves_month": leaves_month,
+        "leaves_total": leaves_total,
+        "recent_leaves": recent_leaves,
+        "leave_stats": leave_stats,
+        "today": today,
+    })

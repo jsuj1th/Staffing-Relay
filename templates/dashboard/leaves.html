@@ -2,9 +2,14 @@
 {% block title %}Leave Queue — Relay{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-  <h2 class="page-title">Leave queue</h2>
-  <div class="section-label" style="margin-top:4px">auto-decided by Relay · override anytime</div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="page-title" style="margin-bottom:4px;">Leave queue</h2>
+    <div class="section-label">auto-decided by Relay · override anytime</div>
+  </div>
+  <a href="{% url 'dashboard:absence_create' %}" class="relay-btn relay-btn-primary">
+    + Record Absence
+  </a>
 </div>
 
 <!-- Filters -->
@@ -26,6 +31,14 @@
         {% for loc in locations %}
           <option value="{{ loc.id }}" {% if location_filter == loc.id|stringformat:"i" %}selected{% endif %}>{{ loc.name }}</option>
         {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#9A8D7E;display:block;margin-bottom:6px;">Period taken</label>
+      <select name="period" style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;background:#FBF9F4;border:1px solid #D6CBBA;border-radius:0;color:#2B2521;padding:6px 10px;">
+        <option value="">All time</option>
+        <option value="week" {% if period_filter == "week" %}selected{% endif %}>Last 7 days</option>
+        <option value="month" {% if period_filter == "month" %}selected{% endif %}>Last 30 days</option>
       </select>
     </div>
     <div class="col-auto d-flex gap-2">

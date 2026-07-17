@@ -17,15 +17,69 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
   <style>
+    /* ─── Design Tokens (Semantic Colors) ─── */
+    :root {
+      /* Primary & Accent */
+      --color-primary: #8A3A2E;
+      --color-primary-dark: #712E24;
+      --color-primary-light: #F5E8E6;
+      --color-accent: #D4AF37;
+
+      /* Success & Status */
+      --color-success: #5F7A52;
+      --color-success-dark: #4D6542;
+      --color-success-light: #EAF2E6;
+      --color-error: #C1440E;
+      --color-error-light: #FCEEE9;
+      --color-warning: #C98B3A;
+      --color-warning-light: #FDF3E0;
+
+      /* Neutral & Background */
+      --color-surface: #FBF9F4;
+      --color-surface-alt: #F6F1E8;
+      --color-background: #EAE3D7;
+      --color-border: #E4DACB;
+      --color-border-secondary: #C4B7A6;
+      --color-text-primary: #2B2521;
+      --color-text-secondary: #6B5F54;
+      --color-text-tertiary: #9A8D7E;
+      --color-text-muted: #8A8073;
+
+      /* Dark Theme */
+      --color-dark-bg: #2B2521;
+      --color-dark-border: rgba(255, 255, 255, 0.08);
+      --color-dark-text: #FBF9F4;
+      --color-dark-text-secondary: #A89C8C;
+
+      /* Typography */
+      --font-serif: 'Spectral', serif;
+      --font-sans: 'IBM Plex Sans', sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+
+      /* Spacing & Sizing */
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 12px;
+      --spacing-lg: 16px;
+      --spacing-xl: 20px;
+      --spacing-2xl: 28px;
+
+      /* Touch & Interaction */
+      --touch-min-size: 44px;
+      --transition-fast: 150ms ease-out;
+      --transition-base: 200ms ease-out;
+      --transition-slow: 300ms ease-out;
+    }
+
     /* ─── Reset & Base ─── */
     *, *::before, *::after { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: 'IBM Plex Sans', sans-serif;
+      font-family: var(--font-sans);
       font-size: 15px;
-      color: #2B2521;
-      background: #EAE3D7;
+      color: var(--color-text-primary);
+      background: var(--color-background);
       line-height: 1.5;
     }
 
@@ -34,6 +88,33 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #D6CBBA; border-radius: 0; }
     ::-webkit-scrollbar-thumb:hover { background: #C4B7A6; }
+
+    /* ─── Animations & Accessibility ─── */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    .spinner-border {
+      width: 16px;
+      height: 16px;
+      border-width: 2px;
+      animation: spinner-border 0.75s linear infinite;
+    }
+
+    @keyframes spinner-border {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner-border {
+        animation: none;
+        border-style: solid;
+      }
+    }
 
     /* ─── App Shell ─── */
     .app-shell {
@@ -45,61 +126,93 @@
     .sidebar {
       width: 240px;
       flex-shrink: 0;
-      background: #2B2521;
+      background: var(--color-dark-bg);
       display: flex;
       flex-direction: column;
       min-height: 100vh;
+      transition: width var(--transition-base), transform var(--transition-base);
+      z-index: 1000;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 60px;
+        height: 100vh;
+      }
     }
 
     .sidebar-brand {
-      padding: 20px 20px 18px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      font-family: 'IBM Plex Mono', monospace;
+      padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-md);
+      border-bottom: 1px solid var(--color-dark-border);
+      font-family: var(--font-mono);
       font-size: 14px;
       font-weight: 500;
       letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: #8A3A2E;
+      color: var(--color-dark-text);
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: center;
+      gap: var(--spacing-sm);
+      transition: opacity var(--transition-base);
     }
 
     .sidebar-brand i {
       font-size: 16px;
-      color: #8A3A2E;
+      color: var(--color-accent);
+    }
+
+    @media (max-width: 768px) {
+      .sidebar-brand {
+        padding: var(--spacing-md);
+      }
+
+      .sidebar-brand span {
+        display: none;
+      }
     }
 
     .sidebar-nav {
       display: flex;
       flex-direction: column;
-      padding: 12px 10px;
+      padding: var(--spacing-sm);
       gap: 2px;
       flex: 1;
     }
 
     .sidebar-nav .nav-link {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: #A89C8C;
-      padding: 9px 12px;
+      color: var(--color-dark-text-secondary);
+      padding: 9px var(--spacing-md);
       border-radius: 0;
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: center;
+      gap: var(--spacing-sm);
       text-decoration: none;
-      transition: color 0.15s, background 0.15s;
+      transition: color var(--transition-base), background var(--transition-base);
+      min-height: var(--touch-min-size);
+    }
+
+    @media (min-width: 769px) {
+      .sidebar-nav .nav-link {
+        justify-content: flex-start;
+      }
     }
 
     .sidebar-nav .nav-link:hover {
-      color: #FBF9F4;
+      color: var(--color-dark-text);
       background: rgba(255, 255, 255, 0.06);
     }
 
     .sidebar-nav .nav-link.active {
-      color: #FBF9F4;
+      color: var(--color-dark-text);
       background: rgba(138, 58, 46, 0.2);
     }
 
@@ -157,9 +270,17 @@
     /* ─── Main Content ─── */
     .main-content {
       flex: 1;
-      background: #EAE3D7;
+      background: var(--color-background);
       min-width: 0;
-      padding: 28px 32px;
+      padding: var(--spacing-2xl) var(--spacing-2xl);
+      transition: margin-left var(--transition-base);
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        margin-left: 60px;
+        padding: var(--spacing-lg);
+      }
     }
 
     /* ─── Alerts ─── */
@@ -218,7 +339,7 @@
       font-size: 13px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: #9A8D7E;
+      color: #6B5F54;
     }
 
     /* ─── Ratio Status Colors ─── */
@@ -228,29 +349,35 @@
 
     /* ─── Cards ─── */
     .relay-card {
-      background: #F1EADD;
+      background: var(--color-surface-alt);
       border: none;
       box-shadow: none;
       border-radius: 0;
+      transition: box-shadow var(--transition-base);
     }
 
     /* Override Bootstrap card defaults */
     .card {
-      background: #F1EADD;
-      border: 1px solid #E4DACB;
+      background: var(--color-surface-alt);
+      border: 1px solid var(--color-border);
       box-shadow: none;
       border-radius: 0;
     }
 
     .card-header {
-      background: #F6F1E8;
-      border-bottom: 1px solid #E4DACB;
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
       border-radius: 0 !important;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-tertiary);
     }
 
     .card-footer {
-      background: #F6F1E8;
-      border-top: 1px solid #E4DACB;
+      background: var(--color-surface);
+      border-top: 1px solid var(--color-border);
       border-radius: 0 !important;
     }
 
@@ -260,66 +387,91 @@
     .relay-badge-extreme,
     .relay-badge-pending,
     .relay-badge-cancelled {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      padding: 4px 10px;
+      padding: var(--spacing-xs) var(--spacing-sm);
       display: inline-block;
       border-radius: 0;
+      min-height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
-    .relay-badge-approved  { background: #5F7A52; color: #FBF9F4; }
-    .relay-badge-rejected  { background: #8A3A2E; color: #FBF9F4; }
-    .relay-badge-extreme   { background: #C98B3A; color: #FBF9F4; }
-    .relay-badge-pending   { background: #9A8D7E; color: #FBF9F4; }
-    .relay-badge-cancelled { background: #C4B7A6; color: #4A3F36; }
+    .relay-badge-approved  { background: var(--color-success); color: var(--color-surface); }
+    .relay-badge-rejected  { background: var(--color-primary); color: var(--color-surface); }
+    .relay-badge-extreme   { background: var(--color-warning); color: var(--color-surface); }
+    .relay-badge-pending   { background: var(--color-text-tertiary); color: var(--color-surface); }
+    .relay-badge-cancelled { background: var(--color-border-secondary); color: var(--color-text-primary); }
 
     /* ─── Buttons ─── */
     .relay-btn {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: var(--font-mono);
       font-size: 13px;
       letter-spacing: 0.06em;
       text-transform: uppercase;
       border-radius: 0;
-      padding: 10px 18px;
-      border: 1px solid #C4B7A6;
+      padding: var(--spacing-md) var(--spacing-lg);
+      min-height: var(--touch-min-size);
+      border: 1px solid var(--color-border-secondary);
       background: transparent;
-      color: #6B6259;
+      color: var(--color-text-primary);
       cursor: pointer;
       text-decoration: none;
-      display: inline-block;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--transition-base), color var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
     }
 
     .relay-btn:hover {
-      background: #E4DACB;
-      color: #2B2521;
-      border-color: #B0A596;
+      background: var(--color-border);
+      color: var(--color-text-primary);
+      border-color: var(--color-text-tertiary);
+      box-shadow: 0 2px 4px rgba(43, 37, 33, 0.08);
+    }
+
+    .relay-btn:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(138, 58, 46, 0.2), inset 0 0 0 2px var(--color-primary);
     }
 
     .relay-btn-primary {
-      background: #8A3A2E;
-      border-color: #8A3A2E;
-      color: #FBF9F4;
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-surface);
     }
 
     .relay-btn-primary:hover {
-      background: #712E24;
-      border-color: #712E24;
-      color: #FBF9F4;
+      background: var(--color-primary-dark);
+      border-color: var(--color-primary-dark);
+      color: var(--color-surface);
+      box-shadow: 0 4px 8px rgba(138, 58, 46, 0.2);
+    }
+
+    .relay-btn-primary:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(138, 58, 46, 0.3), inset 0 0 0 2px var(--color-surface);
     }
 
     .relay-btn-approve {
-      background: #5F7A52;
-      border-color: #5F7A52;
-      color: #FBF9F4;
+      background: var(--color-success);
+      border-color: var(--color-success);
+      color: var(--color-surface);
     }
 
     .relay-btn-approve:hover {
-      background: #4D6542;
-      border-color: #4D6542;
-      color: #FBF9F4;
+      background: var(--color-success-dark);
+      border-color: var(--color-success-dark);
+      color: var(--color-surface);
+      box-shadow: 0 4px 8px rgba(95, 122, 82, 0.2);
+    }
+
+    .relay-btn-approve:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(95, 122, 82, 0.3), inset 0 0 0 2px var(--color-surface);
     }
 
     /* Override Bootstrap btn defaults */
@@ -408,18 +560,54 @@
     /* ─── Forms ─── */
     .form-control, .form-select {
       border-radius: 0;
-      border: 1px solid #C4B7A6;
-      background: #FBF9F4;
-      color: #2B2521;
-      font-family: 'IBM Plex Sans', sans-serif;
+      border: 1px solid var(--color-border-secondary);
+      background: var(--color-surface);
+      color: var(--color-text-primary);
+      font-family: var(--font-sans);
       font-size: 14px;
+      padding: var(--spacing-md) var(--spacing-lg);
+      min-height: var(--touch-min-size);
+      transition: border-color var(--transition-base), box-shadow var(--transition-base);
     }
 
     .form-control:focus, .form-select:focus {
-      border-color: #8A3A2E;
-      box-shadow: 0 0 0 2px rgba(138, 58, 46, 0.12);
-      background: #FBF9F4;
-      color: #2B2521;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(138, 58, 46, 0.15);
+      background: var(--color-surface);
+      color: var(--color-text-primary);
+      outline: none;
+    }
+
+    .form-control.is-invalid, .form-select.is-invalid {
+      border-color: var(--color-error);
+      box-shadow: 0 0 0 3px rgba(193, 68, 14, 0.1);
+    }
+
+    .form-control.is-invalid:focus, .form-select.is-invalid:focus {
+      border-color: var(--color-error);
+      box-shadow: 0 0 0 3px rgba(193, 68, 14, 0.2);
+    }
+
+    .form-control:disabled, .form-select:disabled {
+      background: var(--color-border);
+      color: var(--color-text-tertiary);
+      cursor: not-allowed;
+    }
+
+    .invalid-feedback {
+      display: block;
+      color: var(--color-error);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      margin-top: var(--spacing-sm);
+    }
+
+    .valid-feedback {
+      display: block;
+      color: var(--color-success);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      margin-top: var(--spacing-sm);
     }
 
     .form-label {
@@ -463,45 +651,46 @@
     /* ─── Dropdowns ─── */
     .dropdown-menu {
       border-radius: 0;
-      border: 1px solid #E4DACB;
-      background: #FBF9F4;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
       box-shadow: 0 4px 16px rgba(43, 37, 33, 0.1);
     }
 
     .dropdown-item {
-      font-family: 'IBM Plex Sans', sans-serif;
+      font-family: var(--font-sans);
       font-size: 14px;
-      color: #2B2521;
-      padding: 8px 16px;
+      color: var(--color-text-primary);
+      padding: var(--spacing-sm) var(--spacing-lg);
+      transition: background var(--transition-fast);
     }
 
     .dropdown-item:hover, .dropdown-item:focus {
-      background: #F1EADD;
-      color: #2B2521;
+      background: var(--color-surface-alt);
+      color: var(--color-text-primary);
     }
 
     /* ─── Modals ─── */
     .modal-content {
       border-radius: 0;
-      border: 1px solid #E4DACB;
-      background: #FBF9F4;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
     }
 
     .modal-header {
-      border-bottom: 1px solid #E4DACB;
-      background: #F6F1E8;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface-alt);
     }
 
     .modal-title {
-      font-family: 'Spectral', serif;
+      font-family: var(--font-serif);
       font-size: 20px;
       font-weight: 600;
-      color: #2B2521;
+      color: var(--color-text-primary);
     }
 
     .modal-footer {
-      border-top: 1px solid #E4DACB;
-      background: #F6F1E8;
+      border-top: 1px solid var(--color-border);
+      background: var(--color-surface-alt);
     }
 
     /* ─── Badges (Bootstrap override) ─── */
@@ -564,12 +753,97 @@
     }
 
     /* ─── Text utilities ─── */
-    .text-muted { color: #9A8D7E !important; }
-    .text-secondary { color: #8A8073 !important; }
+    .text-muted { color: var(--color-text-tertiary) !important; }
+    .text-secondary { color: var(--color-text-muted) !important; }
 
     /* ─── Surface helpers ─── */
-    .surface-card { background: #FBF9F4; }
-    .surface-panel { background: #F6F1E8; }
+    .surface-card { background: var(--color-surface); }
+    .surface-panel { background: var(--color-surface-alt); }
+
+    /* ─── Skeleton Loaders ─── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--color-border) 25%, var(--color-border-secondary) 50%, var(--color-border) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 2s infinite;
+      border-radius: 0;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton {
+        animation: none;
+        background: var(--color-border);
+      }
+    }
+
+    .skeleton-text {
+      height: 16px;
+      margin-bottom: 8px;
+      border-radius: 0;
+    }
+
+    .skeleton-text.short {
+      width: 60%;
+    }
+
+    /* ─── Responsive Table to Card Layout ─── */
+    @media (max-width: 768px) {
+      .row.g-0 {
+        flex-direction: column;
+      }
+
+      .row.g-0 > [class*='col-'] {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+      }
+
+      .table {
+        display: block;
+      }
+
+      .table thead {
+        display: none;
+      }
+
+      .table tbody,
+      .table tbody tr,
+      .table tbody td {
+        display: block;
+        width: 100%;
+      }
+
+      .table tbody tr {
+        margin-bottom: 1rem;
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
+      }
+
+      .table tbody td {
+        padding-left: 50%;
+        position: relative;
+        text-align: right;
+        border: none;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        padding-right: 16px;
+      }
+
+      .table tbody td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 16px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--color-text-tertiary);
+        font-weight: 500;
+      }
+    }
   </style>
 </head>
 <body>

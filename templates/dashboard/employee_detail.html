@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}{{ employee.name }} — Relay{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <a href="{% url 'dashboard:employees' %}" style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.06em; color:#9A8D7E; text-decoration:none;">← Back</a>
+    <h2 class="page-title" style="margin-top:8px; margin-bottom:4px;">{{ employee.name }}</h2>
+    <span class="section-label">{{ employee.get_employee_type_display }}</span>
+  </div>
+  <a href="{% url 'dashboard:employee_edit' employee.pk %}" class="relay-btn relay-btn-primary">Edit</a>
+</div>
+
+<!-- Key Stats Grid -->
+<div class="row g-3 mb-4" style="margin-bottom:28px;">
+  <div class="col-md-3">
+    <div style="background:#F1EADD; border:1px solid #E4DACB; padding:16px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#9A8D7E; margin-bottom:8px;">This Week</div>
+      <div style="font-family:'Spectral',serif; font-size:32px; font-weight:600; color:#2B2521;">{{ leaves_week }}</div>
+      <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#8A8073;">approved leaves</div>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div style="background:#F1EADD; border:1px solid #E4DACB; padding:16px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#9A8D7E; margin-bottom:8px;">This Month</div>
+      <div style="font-family:'Spectral',serif; font-size:32px; font-weight:600; color:#2B2521;">{{ leaves_month }}</div>
+      <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#8A8073;">approved leaves</div>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div style="background:#F1EADD; border:1px solid #E4DACB; padding:16px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#9A8D7E; margin-bottom:8px;">All Time</div>
+      <div style="font-family:'Spectral',serif; font-size:32px; font-weight:600; color:#2B2521;">{{ leaves_total }}</div>
+      <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#8A8073;">approved leaves</div>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div style="background:#F1EADD; border:1px solid #E4DACB; padding:16px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#9A8D7E; margin-bottom:8px;">Status</div>
+      {% if employee.is_active %}
+        <span class="relay-badge-approved" style="font-size:14px; padding:6px 10px;">Active</span>
+      {% else %}
+        <span class="relay-badge-cancelled" style="font-size:14px; padding:6px 10px;">Inactive</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Leave Breakdown -->
+<div style="background:#F1EADD; border:1px solid #E4DACB; margin-bottom:28px;">
+  <div style="padding:16px 20px; border-bottom:1px solid #E4DACB;">
+    <h3 style="font-family:'Spectral',serif; font-size:20px; font-weight:600; color:#2B2521; margin:0;">Leave Breakdown</h3>
+  </div>
+
+  <div class="row g-0" style="padding:20px;">
+    <div class="col-md-2">
+      <div style="text-align:center;">
+        <div style="font-family:'Spectral',serif; font-size:28px; font-weight:600; color:#5F7A52;">{{ leave_stats.approved }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#9A8D7E;">Approved</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div style="text-align:center;">
+        <div style="font-family:'Spectral',serif; font-size:28px; font-weight:600; color:#C98B3A;">{{ leave_stats.extreme }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#9A8D7E;">Extreme</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div style="text-align:center;">
+        <div style="font-family:'Spectral',serif; font-size:28px; font-weight:600; color:#8A3A2E;">{{ leave_stats.rejected }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#9A8D7E;">Rejected</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div style="text-align:center;">
+        <div style="font-family:'Spectral',serif; font-size:28px; font-weight:600; color:#9A8D7E;">{{ leave_stats.pending }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#9A8D7E;">Pending</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div style="text-align:center;">
+        <div style="font-family:'Spectral',serif; font-size:28px; font-weight:600; color:#C4B7A6;">{{ leave_stats.cancelled }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#9A8D7E;">Cancelled</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div style="text-align:center;">
+        <div style="font-family:'Spectral',serif; font-size:28px; font-weight:600; color:#2B2521;">{{ leave_stats.approved|add:leave_stats.extreme|add:leave_stats.rejected|add:leave_stats.pending|add:leave_stats.cancelled }}</div>
+        <div style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#9A8D7E;">Total</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Employee Info -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div style="background:#F1EADD; border:1px solid #E4DACB; padding:16px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#9A8D7E; margin-bottom:8px;">Phone</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521;">{{ employee.phone }}</div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div style="background:#F1EADD; border:1px solid #E4DACB; padding:16px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#9A8D7E; margin-bottom:8px;">Location</div>
+      <div style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#2B2521;">{{ employee.location|default:"Shared" }}</div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div style="background:#F1EADD; border:1px solid #E4DACB; padding:16px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#9A8D7E; margin-bottom:8px;">Employee Type</div>
+      <div style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#2B2521;">{{ employee.get_employee_type_display }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Leaves -->
+<div style="background:#F1EADD; border:1px solid #E4DACB;">
+  <div style="padding:16px 20px; border-bottom:1px solid #E4DACB;">
+    <h3 style="font-family:'Spectral',serif; font-size:20px; font-weight:600; color:#2B2521; margin:0;">Recent Leave History</h3>
+    <span class="section-label" style="margin-top:4px;">Last 30 leaves</span>
+  </div>
+
+  {% if recent_leaves %}
+    <!-- Table Headers -->
+    <div class="row g-0" style="padding:10px 20px; border-bottom:2px solid #E4DACB; background:#F6F1E8;">
+      <div class="col-md-2">
+        <span class="section-label">Dates</span>
+      </div>
+      <div class="col-md-2">
+        <span class="section-label">Duration</span>
+      </div>
+      <div class="col-md-2">
+        <span class="section-label">Reason</span>
+      </div>
+      <div class="col-md-2">
+        <span class="section-label">Status</span>
+      </div>
+      <div class="col-md-2">
+        <span class="section-label">Ratio</span>
+      </div>
+      <div class="col-md-2">
+        <span class="section-label">Action</span>
+      </div>
+    </div>
+
+    <!-- Leave Rows -->
+    {% for leave in recent_leaves %}
+      <div class="row g-0 align-items-center" style="padding:14px 20px; border-bottom:1px solid #E4DACB; background:#F1EADD;">
+
+        <div class="col-md-2">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#2B2521;">
+            {{ leave.start_date|date:"M d" }}<br>
+            {% if leave.start_date != leave.end_date %}<span style="color:#9A8D7E;">→ {{ leave.end_date|date:"M d" }}</span>{% endif %}
+          </span>
+        </div>
+
+        <div class="col-md-2">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:#2B2521;">
+            {{ leave.duration_days }} day{{ leave.duration_days|pluralize }}
+          </span>
+        </div>
+
+        <div class="col-md-2">
+          <span style="font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:#2B2521;">
+            {{ leave.reason|default:"—"|truncatewords:3 }}
+          </span>
+        </div>
+
+        <div class="col-md-2">
+          {% if leave.status == "APPROVED" %}
+            <span class="relay-badge-approved">Approved</span>
+          {% elif leave.status == "REJECTED" %}
+            <span class="relay-badge-rejected">Rejected</span>
+          {% elif leave.status == "EXTREME" %}
+            <span class="relay-badge-extreme">Extreme</span>
+          {% elif leave.status == "PENDING" %}
+            <span class="relay-badge-pending">Pending</span>
+          {% else %}
+            <span class="relay-badge-cancelled">Cancelled</span>
+          {% endif %}
+        </div>
+
+        <div class="col-md-2">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#2B2521;">
+            {% if leave.ratio_after %}
+              {{ leave.ratio_after.providers }}P : {{ leave.ratio_after.mas }}MA
+            {% else %}
+              —
+            {% endif %}
+          </span>
+        </div>
+
+        <div class="col-md-2">
+          <a href="{% url 'dashboard:leaves' %}?status=APPROVED" class="relay-btn" style="font-size:11px; padding:6px 10px;">
+            View
+          </a>
+        </div>
+
+      </div>
+    {% endfor %}
+
+  {% else %}
+    <div style="padding:40px 20px; text-align:center;">
+      <span style="font-family:'IBM Plex Sans',sans-serif; font-size:14px; color:#9A8D7E;">
+        No leaves found for this employee.
+      </span>
+    </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}
