@@ -280,10 +280,8 @@ def leave_decision(request, pk):
     old_status = leave.status
     if action == "approve":
         leave.status = Leave.Status.APPROVED
-        reply = "Your leave request has been approved by your manager."
     else:
         leave.status = Leave.Status.REJECTED
-        reply = "Your leave request has been reviewed and cannot be approved at this time. Please contact your manager."
 
     if note:
         leave.internal_note = note
@@ -291,15 +289,13 @@ def leave_decision(request, pk):
     leave.save()
     logger.info("Leave action: id=%d action=%s by=%s", leave.id, action, request.user)
 
-    # Notify employee via SMS
-    send_sms(leave.employee.phone, reply)
-    SmsLog.objects.create(
-        from_phone=leave.employee.phone,
-        employee=leave.employee,
-        inbound_msg=f"[Dashboard] Manager changed status from {old_status} to {leave.status}",
-        outbound_msg=reply,
-        leave=leave,
-    )
+    # Notify employee via SMS using new notification system
+    from apps.messaging.notifications import notify_leave_approved, notify_leave_rejected
+
+    if action == "approve":
+        notify_leave_approved(leave, send_immediately=True)
+    else:
+        notify_leave_rejected(leave, send_immediately=True)
 
     messages.success(request, f"Leave {leave.status.lower()} and employee notified via SMS.")
     return redirect("dashboard:leaves")
@@ -441,7 +437,22 @@ def shift_create(request):
             )
 
         logger.info("Shift created: employee=%s date=%s repeat_weeks=%d", employee.name, shift_date, repeat_weeks)
-        messages.success(request, f"Shift added for {employee.name}" + (f" (repeated {repeat_weeks} weeks)" if repeat_weeks else "") + ".")
+
+        # Queue SMS notifications for shift assignments
+        from apps.messaging.notifications import notify_shift_assigned
+
+        shift = Shift.objects.get(employee=employee, date=shift_date)
+        notify_shift_assigned(shift, send_immediately=False)  # Batch in 1 hour
+
+        if repeat_weeks:
+            for week in range(1, repeat_weeks + 1):
+                repeated_shift = Shift.objects.get(
+                    employee=employee,
+                    date=shift_date + timedelta(weeks=week),
+                )
+                notify_shift_assigned(repeated_shift, send_immediately=False)
+
+        messages.success(request, f"Shift added for {employee.name}" + (f" (repeated {repeat_weeks} weeks)" if repeat_weeks else "") + ". SMS notification queued.")
         return redirect(f"/dashboard/shifts/?location={employee.location_id}&date={shift_date_str}")
 
     return render(request, "dashboard/shift_form.html", {
