@@ -22,8 +22,9 @@ variable "allowed_hosts" {
 }
 
 variable "acm_certificate_arn" {
-  description = "ACM certificate ARN for the ALB HTTPS listener."
+  description = "ACM certificate ARN for the ALB HTTPS listener. Leave empty to run HTTP-only (no domain/cert yet)."
   type        = string
+  default     = ""
 }
 
 variable "db_password" {

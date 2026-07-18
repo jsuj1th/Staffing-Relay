@@ -1,0 +1,10 @@
+# Single-box production. Just the web app — DB is on RDS (external, via
+# DATABASE_URL in .env). No Redis/Celery: SMS batching is flushed by a host
+# cron job running `manage.py send_pending_sms`. See docs/DEPLOY_SINGLEBOX.md.
+services:
+  web:
+    image: ${ECR_IMAGE:?set ECR_IMAGE}
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "80:8000"

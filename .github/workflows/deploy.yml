@@ -94,6 +94,24 @@ jobs:
           container-name: web
           image: ${{ steps.build-image.outputs.image }}
 
+      - name: Run DB migrations (one-off Fargate task)
+        run: |
+          SUBNETS=$(aws ecs describe-services --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets' --output text | tr '\t' ',')
+          SGS=$(aws ecs describe-services --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups' --output text | tr '\t' ',')
+          TASK_ARN=$(aws ecs run-task --cluster ${{ env.ECS_CLUSTER }} \
+            --task-definition hospital-lms-migrate --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SGS],assignPublicIp=DISABLED}" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Waiting for migrate task $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster ${{ env.ECS_CLUSTER }} --tasks "$TASK_ARN"
+          EXIT=$(aws ecs describe-tasks --cluster ${{ env.ECS_CLUSTER }} --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          echo "migrate exit code: $EXIT"; test "$EXIT" = "0"
+
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:

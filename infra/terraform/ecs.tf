@@ -34,6 +34,9 @@ locals {
     { name = "ALLOWED_HOSTS", value = var.allowed_hosts },
     { name = "AWS_S3_REGION_NAME", value = var.aws_region },
     { name = "AWS_STORAGE_BUCKET_NAME", value = aws_s3_bucket.static.bucket },
+    { name = "HTTPS_ENABLED", value = tostring(local.enable_https) },
+    # Over plain HTTP, POST forms (login) need the ALB origin trusted for CSRF.
+    { name = "CSRF_TRUSTED_ORIGINS", value = local.enable_https ? "" : "http://${aws_lb.this.dns_name}" },
   ]
 
   app_secrets = [
@@ -86,12 +89,12 @@ resource "aws_ecs_task_definition" "celery" {
   task_role_arn            = aws_iam_role.task.arn
 
   container_definitions = jsonencode([{
-    name      = "celery"
-    image     = var.container_image
-    essential = true
-    command   = ["celery", "-A", "lms", "worker", "--loglevel=info"]
-    environment  = local.app_environment
-    secrets      = local.app_secrets
+    name        = "celery"
+    image       = var.container_image
+    essential   = true
+    command     = ["celery", "-A", "lms", "worker", "--loglevel=info"]
+    environment = local.app_environment
+    secrets     = local.app_secrets
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -115,12 +118,12 @@ resource "aws_ecs_task_definition" "migrate" {
   task_role_arn            = aws_iam_role.task.arn
 
   container_definitions = jsonencode([{
-    name      = "migrate"
-    image     = var.container_image
-    essential = true
-    command   = ["python", "manage.py", "migrate", "--noinput"]
-    environment  = local.app_environment
-    secrets      = local.app_secrets
+    name        = "migrate"
+    image       = var.container_image
+    essential   = true
+    command     = ["python", "manage.py", "migrate", "--noinput"]
+    environment = local.app_environment
+    secrets     = local.app_secrets
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -155,7 +158,7 @@ resource "aws_ecs_service" "web" {
     container_port   = 8000
   }
 
-  depends_on = [aws_lb_listener.https]
+  depends_on = [aws_lb_listener.https, aws_lb_listener.http]
 
   # CI (GitHub Actions) deploys new images by registering a new task-def
   # revision and updating the service. Let it own the running revision and

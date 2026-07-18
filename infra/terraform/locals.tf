@@ -1,5 +1,5 @@
 locals {
-  name_prefix = "${var.project}"
+  name_prefix = var.project
 
   common_tags = {
     Project     = var.project

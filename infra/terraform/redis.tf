@@ -10,7 +10,7 @@ resource "aws_elasticache_subnet_group" "this" {
 # when Celery broker availability needs to survive a node restart.
 resource "aws_elasticache_replication_group" "this" {
   replication_group_id = "${local.name_prefix}-redis"
-  description           = "Redis for Celery broker + result backend"
+  description          = "Redis for Celery broker + result backend"
 
   engine         = "redis"
   engine_version = "7.0"
@@ -19,7 +19,7 @@ resource "aws_elasticache_replication_group" "this" {
   num_cache_clusters = 1
   port               = 6379
 
-  subnet_group_name = aws_elasticache_subnet_group.this.name
+  subnet_group_name  = aws_elasticache_subnet_group.this.name
   security_group_ids = [aws_security_group.redis_sg.id]
 
   automatic_failover_enabled = false

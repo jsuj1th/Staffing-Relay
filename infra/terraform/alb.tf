@@ -29,7 +29,15 @@ resource "aws_lb_target_group" "web" {
   tags = local.common_tags
 }
 
+# enable_https flips the whole listener setup: with a cert we serve HTTPS on 443
+# and 301 HTTP→HTTPS; without one we just forward HTTP 80 to the app so you can
+# reach it by the ALB DNS name. ponytail: one flag driven by whether a cert is set.
+locals {
+  enable_https = var.acm_certificate_arn != ""
+}
+
 resource "aws_lb_listener" "https" {
+  count             = local.enable_https ? 1 : 0
   load_balancer_arn = aws_lb.this.arn
   port              = 443
   protocol          = "HTTPS"
@@ -42,18 +50,23 @@ resource "aws_lb_listener" "https" {
   }
 }
 
-resource "aws_lb_listener" "http_redirect" {
+resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
   port              = 80
   protocol          = "HTTP"
 
   default_action {
-    type = "redirect"
+    # With a cert: redirect to HTTPS. Without: forward straight to the app.
+    type             = local.enable_https ? "redirect" : "forward"
+    target_group_arn = local.enable_https ? null : aws_lb_target_group.web.arn
 
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
+    dynamic "redirect" {
+      for_each = local.enable_https ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
     }
   }
 }
