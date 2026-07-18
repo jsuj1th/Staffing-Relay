@@ -42,18 +42,18 @@ def clear_user_session(phone):
 
 
 def start_leave_menu(phone):
-    """Initialize leave request menu for user."""
+    """Initialize leave request menu for user (skip type, go to start date)."""
     session = {
-        "state": LeaveMenuState.AWAITING_TYPE,
+        "state": LeaveMenuState.AWAITING_START_DATE,
         "started_at": timezone.now().isoformat(),
-        "leave_type": None,
+        "leave_type": "LEAVE",  # Default type (not tracked)
         "start_date": None,
         "end_date": None,
         "is_range": False,
         "reason": None,
     }
     set_user_session(phone, session)
-    send_menu_prompt(phone, step=1)
+    send_menu_prompt(phone, step=2)  # Start date prompt (skip type)
     return None  # Menu sends prompt
 
 
@@ -92,15 +92,15 @@ def process_menu_response(phone, text, employee):
         response = text.strip().upper()
 
         if response == "1":
-            # Option 1: Request Leave - transition to leave type selection
-            session["state"] = LeaveMenuState.AWAITING_TYPE
-            session["leave_type"] = None
+            # Option 1: Request Leave - skip type, go directly to start date
+            session["state"] = LeaveMenuState.AWAITING_START_DATE
+            session["leave_type"] = "LEAVE"  # Default type (not tracked)
             session["start_date"] = None
             session["end_date"] = None
             session["is_range"] = False
             session["reason"] = None
             set_user_session(phone, session)
-            send_menu_prompt(phone, step=1)
+            send_menu_prompt(phone, step=2)  # Start date prompt (skip type)
             return None, None  # Menu sends prompt
 
         elif response == "2":
@@ -158,20 +158,8 @@ def process_menu_response(phone, text, employee):
             send_main_menu(phone)
             return "Invalid option. Reply with 1, 2, 3, or 4.", None
 
-    # Step 1: Awaiting leave type
-    if state == LeaveMenuState.AWAITING_TYPE:
-        leave_type, error = handle_leave_type_response(text)
-        if error:
-            return error, None
-
-        session["leave_type"] = leave_type
-        session["state"] = LeaveMenuState.AWAITING_START_DATE
-        set_user_session(phone, session)
-        send_menu_prompt(phone, step=2)
-        return None, None  # Prompt sent separately
-
-    # Step 2: Awaiting start date
-    elif state == LeaveMenuState.AWAITING_START_DATE:
+    # Step 1: Awaiting start date (leave type selection removed)
+    if state == LeaveMenuState.AWAITING_START_DATE:
         start_date, _, error = handle_date_response(text)
         if error:
             if error.startswith("Leave request cancelled"):

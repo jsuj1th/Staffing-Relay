@@ -319,25 +319,11 @@ class MenuSessionTests(TestCase):
         # Verify it's gone
         self.assertFalse(is_in_menu_flow(self.phone))
 
-    def test_process_leave_type_response(self):
-        """Test processing leave type selection."""
-        start_leave_menu(self.phone)
-
-        # User selects type 2 (Vacation)
-        reply, leave = process_menu_response(self.phone, "2", self.employee)
-
-        # Should transition to awaiting start date
-        session = get_user_session(self.phone)
-        self.assertEqual(session["state"], LeaveMenuState.AWAITING_START_DATE)
-        self.assertEqual(session["leave_type"], "VACATION")
-        self.assertIsNone(reply)  # Menu sends prompt separately
-
     def test_process_date_response(self):
         """Test processing date entry."""
         start_leave_menu(self.phone)
-        process_menu_response(self.phone, "2", self.employee)  # Select type
 
-        # User enters start date
+        # User enters start date (type selection removed)
         reply, leave = process_menu_response(self.phone, "0725", self.employee)
 
         # Should transition to awaiting duration (single or range)
@@ -350,29 +336,25 @@ class MenuSessionTests(TestCase):
         """Test complete leave request via menu."""
         start_leave_menu(self.phone)
 
-        # Step 1: Select type
-        process_menu_response(self.phone, "2", self.employee)
-
-        # Step 2: Enter start date
+        # Step 1: Enter start date (type selection removed)
         process_menu_response(self.phone, "0725", self.employee)
 
-        # Step 3: Choose single day
+        # Step 2: Choose single day
         process_menu_response(self.phone, "S", self.employee)
 
-        # Step 4: Enter reason
+        # Step 3: Enter reason
         reply, _ = process_menu_response(self.phone, "Summer vacation", self.employee)
 
         # Should now be in confirmation step
         self.assertIn("YES", reply)
         self.assertIn("NO", reply)
-        self.assertIn("Vacation", reply)
+        self.assertIn("Jul", reply)  # Date confirmation
 
     def test_cancel_at_any_step(self):
         """Test cancelling at different steps."""
         start_leave_menu(self.phone)
-        process_menu_response(self.phone, "2", self.employee)
 
-        # Cancel after type selection
+        # Cancel after start date prompt
         reply, _ = process_menu_response(self.phone, "CANCEL", self.employee)
 
         self.assertIn("cancelled", reply.lower())
@@ -421,71 +403,59 @@ class MenuUnrecognizedTextTests(TestCase):
             self.assertIsNone(reply, f"Expected None reply for '{text}', got {reply}")
             self.assertIsNone(leave)
 
-            # Verify session was created with AWAITING_TYPE state
+            # Verify session was created with AWAITING_START_DATE state (type selection removed)
             session = get_user_session(self.phone)
             self.assertIsNotNone(session, f"Session not created for '{text}'")
             self.assertEqual(
                 session.get("state"),
-                LeaveMenuState.AWAITING_TYPE,
-                f"Expected AWAITING_TYPE state for '{text}', got {session.get('state')}",
+                LeaveMenuState.AWAITING_START_DATE,
+                f"Expected AWAITING_START_DATE state for '{text}', got {session.get('state')}",
             )
 
-            # Verify menu prompt was sent
+            # Verify start date prompt was sent
             mock_send_sms.assert_called_once()
             call_args = mock_send_sms.call_args
             sent_message = call_args[0][1] if len(call_args[0]) > 1 else call_args.kwargs.get("message", "")
-            self.assertIn("RELAY LEAVE REQUEST", sent_message, f"Menu not sent for '{text}'")
+            self.assertIn("START DATE", sent_message, f"Start date prompt not sent for '{text}'")
 
     @patch("apps.messaging.leave_menu.send_sms")
     def test_menu_flow_from_unrecognized_hi(self, mock_send_sms):
         """Complete flow starting from unrecognized 'HI' through full menu sequence."""
-        # Step 1: Send "HI" - unrecognized text triggers menu
+        # Step 1: Send "HI" - unrecognized text triggers leave request (type selection removed)
         reply, leave = _process_command(self.phone, "HI", self.employee)
         self.assertIsNone(reply)
         self.assertIsNone(leave)
 
-        # Verify menu step 1 was sent
+        # Verify start date prompt was sent (skipped type selection)
         self.assertEqual(mock_send_sms.call_count, 1)
         first_call = mock_send_sms.call_args[0][1]
-        self.assertIn("RELAY LEAVE REQUEST", first_call)
-        self.assertIn("leave type", first_call.lower())
+        self.assertIn("START DATE", first_call)
         mock_send_sms.reset_mock()
 
-        # Step 2: Select Vacation (option 2)
-        reply, leave = _process_command(self.phone, "2", self.employee)
-        self.assertIsNone(reply)
-        self.assertIsNone(leave)
-
-        # Verify menu step 2 was sent (start date prompt)
-        self.assertEqual(mock_send_sms.call_count, 1)
-        second_call = mock_send_sms.call_args[0][1]
-        self.assertIn("START DATE", second_call)
-        mock_send_sms.reset_mock()
-
-        # Step 3: Enter start date (0725 = July 25)
+        # Step 2: Enter start date (0725 = July 25)
         reply, leave = _process_command(self.phone, "0725", self.employee)
         self.assertIsNone(reply)
         self.assertIsNone(leave)
 
-        # Verify menu step 3 was sent (duration prompt)
+        # Verify duration prompt was sent
         self.assertEqual(mock_send_sms.call_count, 1)
-        third_call = mock_send_sms.call_args[0][1]
-        self.assertIn("DURATION", third_call)
-        self.assertIn("Single day", third_call)
+        second_call = mock_send_sms.call_args[0][1]
+        self.assertIn("DURATION", second_call)
+        self.assertIn("Single day", second_call)
         mock_send_sms.reset_mock()
 
-        # Step 4: Choose single day
+        # Step 3: Choose single day
         reply, leave = _process_command(self.phone, "S", self.employee)
         self.assertIsNone(reply)
         self.assertIsNone(leave)
 
-        # Verify menu step 5 was sent (reason prompt)
+        # Verify reason prompt was sent
         self.assertEqual(mock_send_sms.call_count, 1)
-        fourth_call = mock_send_sms.call_args[0][1]
-        self.assertIn("REASON", fourth_call)
+        third_call = mock_send_sms.call_args[0][1]
+        self.assertIn("REASON", third_call)
         mock_send_sms.reset_mock()
 
-        # Step 5: Enter reason
+        # Step 4: Enter reason
         reply, leave = _process_command(self.phone, "Summer vacation", self.employee)
 
         # Should return confirmation message (reply is not None at confirmation step)
@@ -493,7 +463,7 @@ class MenuUnrecognizedTextTests(TestCase):
         self.assertIsNone(leave)  # Leave not created yet
         self.assertIn("YES", reply)
         self.assertIn("NO", reply)
-        self.assertIn("Vacation", reply)
+        self.assertIn("Jul 25", reply)  # Date confirmation
         self.assertIn("Summer vacation", reply)
         mock_send_sms.reset_mock()
 
@@ -509,8 +479,8 @@ class MenuUnrecognizedTextTests(TestCase):
         # They can be PENDING (awaiting admin) or REJECTED (insufficient coverage)
         # But NOT APPROVED (that's dashboard-only)
         self.assertIn(leave.status, [Leave.Status.PENDING, Leave.Status.REJECTED])
-        # Verify it's a vacation leave by checking internal_note contains VACATION
-        self.assertIn("VACATION", leave.internal_note)
+        # Verify it's a menu leave (type not tracked, defaults to LEAVE)
+        self.assertIn("LEAVE", leave.internal_note)
         # If approved by coverage, should mention admin review. If rejected, should mention rejection.
         self.assertTrue(
             "awaiting admin review" in reply.lower() or "cannot be approved" in reply.lower(),
@@ -661,15 +631,14 @@ class MainMenuTests(TestCase):
         self.assertIsNone(reply)
         self.assertIsNone(leave)
 
-        # Verify state changed to AWAITING_TYPE
+        # Verify state changed to AWAITING_START_DATE (type selection removed)
         session = get_user_session(self.phone)
-        self.assertEqual(session["state"], LeaveMenuState.AWAITING_TYPE)
+        self.assertEqual(session["state"], LeaveMenuState.AWAITING_START_DATE)
 
-        # Verify leave type menu was sent
+        # Verify start date menu was sent
         mock_send_sms.assert_called_once()
         sent_message = mock_send_sms.call_args[0][1]
-        self.assertIn("RELAY LEAVE REQUEST", sent_message)
-        self.assertIn("leave type", sent_message.lower())
+        self.assertIn("START DATE", sent_message)
 
     @patch("apps.messaging.leave_menu.send_sms")
     def test_main_menu_option_3_cancels_single_leave(self, mock_send_sms):
@@ -751,21 +720,21 @@ class MainMenuTests(TestCase):
 
     @patch("apps.messaging.leave_menu.send_sms")
     def test_leave_command_still_works(self, mock_send_sms):
-        """LEAVE command still works (goes to leave type, not main menu)."""
+        """LEAVE command still works (skips type, goes to start date)."""
         reply, leave = _process_command(self.phone, "LEAVE", self.employee)
 
         # Menu sends its own prompt
         self.assertIsNone(reply)
         self.assertIsNone(leave)
 
-        # Verify state is AWAITING_TYPE (not main menu)
+        # Verify state is AWAITING_START_DATE (type selection removed)
         session = get_user_session(self.phone)
-        self.assertEqual(session["state"], LeaveMenuState.AWAITING_TYPE)
+        self.assertEqual(session["state"], LeaveMenuState.AWAITING_START_DATE)
 
-        # Verify leave request menu was sent (not main menu)
+        # Verify start date prompt was sent
         mock_send_sms.assert_called_once()
         sent_message = mock_send_sms.call_args[0][1]
-        self.assertIn("RELAY LEAVE REQUEST", sent_message)
+        self.assertIn("START DATE", sent_message)
 
 
 class AdminLeaveManagementTests(TestCase):
