@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} Leave — Relay{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <a href="{% url 'dashboard:leaves' %}" style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.06em; color:#9A8D7E; text-decoration:none;">← Back</a>
+    <h2 class="page-title" style="margin-top:8px; margin-bottom:4px;">{{ action }} Leave</h2>
+    <span class="section-label">{% if leave %}{{ leave.employee.name }} — {{ leave.start_date }} to {{ leave.end_date }}{% else %}Create new leave record{% endif %}</span>
+  </div>
+</div>
+
+<!-- Form -->
+<div style="max-width:600px;">
+  <form method="post" style="background:#F1EADD; border:1px solid #E4DACB; padding:24px;">
+
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger" role="alert">
+      {% for error in form.non_field_errors %}
+        {{ error }}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Employee Selection -->
+    <div class="mb-3">
+      <label for="{{ form.employee.id_for_label }}" class="form-label">Employee</label>
+      {{ form.employee }}
+      {% if form.employee.errors %}
+        <div class="text-danger small mt-1">{{ form.employee.errors|first }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Start Date -->
+    <div class="mb-3">
+      <label for="{{ form.start_date.id_for_label }}" class="form-label">Start Date</label>
+      {{ form.start_date }}
+      {% if form.start_date.errors %}
+        <div class="text-danger small mt-1">{{ form.start_date.errors|first }}</div>
+      {% endif %}
+    </div>
+
+    <!-- End Date -->
+    <div class="mb-3">
+      <label for="{{ form.end_date.id_for_label }}" class="form-label">End Date</label>
+      {{ form.end_date }}
+      {% if form.end_date.errors %}
+        <div class="text-danger small mt-1">{{ form.end_date.errors|first }}</div>
+      {% endif %}
+      <small class="text-muted">Can be the same as start date for single-day leaves.</small>
+    </div>
+
+    <!-- Reason -->
+    <div class="mb-3">
+      <label for="{{ form.reason.id_for_label }}" class="form-label">Reason</label>
+      {{ form.reason }}
+      {% if form.reason.errors %}
+        <div class="text-danger small mt-1">{{ form.reason.errors|first }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Status -->
+    <div class="mb-4">
+      <label for="{{ form.status.id_for_label }}" class="form-label">Status</label>
+      {{ form.status }}
+      {% if form.status.errors %}
+        <div class="text-danger small mt-1">{{ form.status.errors|first }}</div>
+      {% endif %}
+      <small class="text-muted">Changing status will trigger SMS notification to employee.</small>
+    </div>
+
+    <!-- Buttons -->
+    <div style="display:flex; gap:12px;">
+      <button type="submit" class="relay-btn relay-btn-primary">
+        Save Changes
+      </button>
+      <a href="{% url 'dashboard:leaves' %}" class="relay-btn">
+        Cancel
+      </a>
+    </div>
+
+  </form>
+</div>
+
+{% endblock %}

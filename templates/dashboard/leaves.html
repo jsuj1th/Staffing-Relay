@@ -79,16 +79,7 @@
       </div>
       <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
         <span class="relay-badge-approved" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">APPROVED</span>
-        {% if leave.status == "PENDING" or leave.status == "EXTREME" %}
-        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
-          {% csrf_token %}<input type="hidden" name="action" value="reject">
-          <button type="submit" class="relay-btn">Reject</button>
-        </form>
-        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
-          {% csrf_token %}<input type="hidden" name="action" value="approve">
-          <button type="submit" class="relay-btn relay-btn-approve">Approve</button>
-        </form>
-        {% endif %}
+        <a href="{% url 'dashboard:leave_edit' leave.pk %}" class="relay-btn">Edit</a>
       </div>
     </div>
     {% endwith %}
@@ -112,6 +103,7 @@
       </div>
       <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
         <span class="relay-badge-rejected" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">REJECTED</span>
+        <a href="{% url 'dashboard:leave_edit' leave.pk %}" class="relay-btn">Edit</a>
       </div>
     </div>
     {% endwith %}
@@ -135,14 +127,15 @@
       </div>
       <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
         <span class="relay-badge-extreme" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">EXTREME</span>
-        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
-          {% csrf_token %}<input type="hidden" name="action" value="reject">
-          <button type="submit" class="relay-btn">Reject</button>
+        <form method="post" action="{% url 'dashboard:leave_reject' leave.pk %}" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="relay-btn" onclick="return confirm('Reject this leave?');">Reject</button>
         </form>
-        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
-          {% csrf_token %}<input type="hidden" name="action" value="approve">
+        <form method="post" action="{% url 'dashboard:leave_approve' leave.pk %}" class="d-inline">
+          {% csrf_token %}
           <button type="submit" class="relay-btn relay-btn-approve">Approve</button>
         </form>
+        <a href="{% url 'dashboard:leave_edit' leave.pk %}" class="relay-btn">Edit</a>
       </div>
     </div>
     {% endwith %}
@@ -166,6 +159,7 @@
       </div>
       <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
         <span class="relay-badge-cancelled" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">CANCELLED</span>
+        <a href="{% url 'dashboard:leave_edit' leave.pk %}" class="relay-btn">Edit</a>
       </div>
     </div>
     {% endwith %}
@@ -190,14 +184,15 @@
       </div>
       <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
         <span class="relay-badge-pending" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">PENDING</span>
-        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
-          {% csrf_token %}<input type="hidden" name="action" value="reject">
-          <button type="submit" class="relay-btn">Reject</button>
+        <form method="post" action="{% url 'dashboard:leave_reject' leave.pk %}" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="relay-btn" onclick="return confirm('Reject this leave?');">Reject</button>
         </form>
-        <form method="post" action="{% url 'dashboard:leave_decision' leave.pk %}" class="d-inline">
-          {% csrf_token %}<input type="hidden" name="action" value="approve">
+        <form method="post" action="{% url 'dashboard:leave_approve' leave.pk %}" class="d-inline">
+          {% csrf_token %}
           <button type="submit" class="relay-btn relay-btn-approve">Approve</button>
         </form>
+        <a href="{% url 'dashboard:leave_edit' leave.pk %}" class="relay-btn">Edit</a>
       </div>
     </div>
     {% endwith %}

@@ -609,3 +609,102 @@ def employee_detail(request, pk):
         "leave_stats": leave_stats,
         "today": today,
     })
+
+
+# Admin leave management views
+
+
+@login_required
+def leave_approve(request, pk):
+    """Admin approves a leave request."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    leave = get_object_or_404(Leave, pk=pk)
+    old_status = leave.status
+    leave.status = Leave.Status.APPROVED
+    leave.approved_by = request.user
+    leave.save(update_fields=["status", "approved_by", "updated_at"])
+
+    logger.info("Leave approved: id=%d by=%s", leave.id, request.user)
+
+    # Notify employee via SMS
+    from apps.messaging.notifications import notify_leave_approved
+
+    notify_leave_approved(leave, send_immediately=True)
+
+    messages.success(request, f"Leave approved and employee notified via SMS.")
+    return redirect("dashboard:leaves")
+
+
+@login_required
+def leave_reject(request, pk):
+    """Admin rejects a leave request with optional reason."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    leave = get_object_or_404(Leave, pk=pk)
+    reason = request.POST.get("reason", "").strip()
+
+    old_status = leave.status
+    leave.status = Leave.Status.REJECTED
+    if reason:
+        leave.internal_note = reason
+    leave.approved_by = request.user
+    leave.save(update_fields=["status", "internal_note", "approved_by", "updated_at"])
+
+    logger.info("Leave rejected: id=%d by=%s", leave.id, request.user)
+
+    # Notify employee via SMS
+    from apps.messaging.notifications import notify_leave_rejected
+
+    notify_leave_rejected(leave, send_immediately=True)
+
+    messages.success(request, f"Leave rejected and employee notified via SMS.")
+    return redirect("dashboard:leaves")
+
+
+@login_required
+def leave_edit(request, pk):
+    """Admin edits a leave record."""
+    from .forms import LeaveForm
+
+    leave = get_object_or_404(Leave, pk=pk)
+    old_status = leave.status
+
+    if request.method == "POST":
+        form = LeaveForm(request.POST, instance=leave)
+        if form.is_valid():
+            leave = form.save(commit=False)
+            leave.approved_by = request.user
+            leave.save()
+
+            logger.info("Leave edited: id=%d by=%s", leave.id, request.user)
+
+            # Send notification only if status changed
+            if old_status != leave.status:
+                from apps.messaging.notifications import (
+                    notify_leave_approved,
+                    notify_leave_rejected,
+                )
+
+                if leave.status == Leave.Status.APPROVED:
+                    notify_leave_approved(leave, send_immediately=True)
+                elif leave.status == Leave.Status.REJECTED:
+                    notify_leave_rejected(leave, send_immediately=True)
+                messages.success(
+                    request,
+                    f"Leave updated and employee notified via SMS.",
+                )
+            else:
+                messages.success(request, "Leave updated successfully.")
+
+            return redirect("dashboard:leaves")
+    else:
+        form = LeaveForm(instance=leave)
+
+    return render(request, "dashboard/leave_form.html", {
+        "form": form,
+        "leave": leave,
+        "action": "Edit",
+    })

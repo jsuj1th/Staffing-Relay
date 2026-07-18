@@ -766,3 +766,260 @@ class MainMenuTests(TestCase):
         mock_send_sms.assert_called_once()
         sent_message = mock_send_sms.call_args[0][1]
         self.assertIn("RELAY LEAVE REQUEST", sent_message)
+
+
+class AdminLeaveManagementTests(TestCase):
+    """Tests for admin leave approval/rejection/editing dashboard."""
+
+    def setUp(self):
+        """Set up test data for admin leave management."""
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+
+        self.location = Location.objects.create(
+            name="Test Hospital",
+            address="123 Main St",
+            city="Testville",
+            state="TX",
+        )
+
+        self.employee = Employee.objects.create(
+            name="Test Employee",
+            phone="+15550000001",
+            employee_type=Employee.Type.PROVIDER,
+            location=self.location,
+        )
+
+        self.admin_user = User.objects.create_user(
+            username="admin",
+            password="adminpass123",
+        )
+
+        today = timezone.localdate()
+        self.test_date = today.replace(month=7, day=25)
+        if self.test_date < today:
+            self.test_date = self.test_date.replace(year=self.test_date.year + 1)
+
+    def test_leave_list_view_shows_all_leaves(self):
+        """GET /dashboard/leaves/ returns all leaves."""
+        from django.test import Client
+
+        # Create test leaves
+        Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date,
+            end_date=self.test_date,
+            status=Leave.Status.PENDING,
+        )
+
+        Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date + timedelta(days=5),
+            end_date=self.test_date + timedelta(days=7),
+            status=Leave.Status.APPROVED,
+        )
+
+        client = Client()
+        client.force_login(self.admin_user)
+        response = client.get("/dashboard/leaves/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.employee.name)
+        self.assertEqual(response.context["leaves"].count(), 2)
+
+    def test_leave_list_shows_status_badges(self):
+        """Status displayed correctly with badges."""
+        from django.test import Client
+
+        pending = Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date,
+            end_date=self.test_date,
+            status=Leave.Status.PENDING,
+        )
+
+        approved = Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date + timedelta(days=5),
+            end_date=self.test_date + timedelta(days=5),
+            status=Leave.Status.APPROVED,
+        )
+
+        client = Client()
+        client.force_login(self.admin_user)
+        response = client.get("/dashboard/leaves/")
+
+        self.assertContains(response, "PENDING")
+        self.assertContains(response, "APPROVED")
+
+    def test_approve_leave_sends_notification(self):
+        """Approve button works, SMS sent."""
+        from django.test import Client
+
+        leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date,
+            end_date=self.test_date,
+            status=Leave.Status.PENDING,
+        )
+
+        client = Client()
+        client.force_login(self.admin_user)
+        response = client.post(
+            f"/dashboard/leaves/{leave.pk}/approve/",
+            follow=True,
+        )
+
+        # Check redirect to list
+        self.assertEqual(response.status_code, 200)
+
+        # Verify leave was approved
+        leave.refresh_from_db()
+        self.assertEqual(leave.status, Leave.Status.APPROVED)
+        self.assertEqual(leave.approved_by, self.admin_user)
+
+        # Verify notification was queued
+        notif = NotificationQueue.objects.filter(
+            employee=self.employee,
+            notification_type=NotificationQueue.NotificationType.LEAVE_APPROVED,
+        ).first()
+        self.assertIsNotNone(notif)
+        self.assertIn("APPROVED", notif.message_body)
+
+    def test_reject_leave_sends_notification(self):
+        """Reject button works, SMS sent."""
+        from django.test import Client
+
+        leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date,
+            end_date=self.test_date,
+            status=Leave.Status.PENDING,
+        )
+
+        client = Client()
+        client.force_login(self.admin_user)
+        response = client.post(
+            f"/dashboard/leaves/{leave.pk}/reject/",
+            data={"reason": "Insufficient coverage"},
+            follow=True,
+        )
+
+        # Check redirect to list
+        self.assertEqual(response.status_code, 200)
+
+        # Verify leave was rejected
+        leave.refresh_from_db()
+        self.assertEqual(leave.status, Leave.Status.REJECTED)
+        self.assertEqual(leave.approved_by, self.admin_user)
+        self.assertIn("Insufficient coverage", leave.internal_note)
+
+        # Verify notification was queued
+        notif = NotificationQueue.objects.filter(
+            employee=self.employee,
+            notification_type=NotificationQueue.NotificationType.LEAVE_REJECTED,
+        ).first()
+        self.assertIsNotNone(notif)
+
+    def test_edit_leave_form_displays(self):
+        """GET edit shows form."""
+        from django.test import Client
+
+        leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date,
+            end_date=self.test_date,
+            status=Leave.Status.PENDING,
+        )
+
+        client = Client()
+        client.force_login(self.admin_user)
+        response = client.get(f"/dashboard/leaves/{leave.pk}/edit/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("form", response.context)
+        self.assertEqual(response.context["action"], "Edit")
+        self.assertEqual(response.context["leave"], leave)
+
+    def test_edit_leave_saves_changes(self):
+        """POST edit saves changes."""
+        from django.test import Client
+
+        leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date,
+            end_date=self.test_date,
+            reason="Original reason",
+            status=Leave.Status.PENDING,
+        )
+
+        new_employee = Employee.objects.create(
+            name="Another Employee",
+            phone="+15550000002",
+            employee_type=Employee.Type.PROVIDER,
+            location=self.location,
+        )
+
+        new_end_date = self.test_date + timedelta(days=2)
+
+        client = Client()
+        client.force_login(self.admin_user)
+        response = client.post(
+            f"/dashboard/leaves/{leave.pk}/edit/",
+            data={
+                "employee": new_employee.pk,
+                "start_date": str(self.test_date),
+                "end_date": str(new_end_date),
+                "reason": "Updated reason",
+                "status": Leave.Status.APPROVED,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify changes were saved
+        leave.refresh_from_db()
+        self.assertEqual(leave.employee, new_employee)
+        self.assertEqual(leave.end_date, new_end_date)
+        self.assertEqual(leave.reason, "Updated reason")
+        self.assertEqual(leave.status, Leave.Status.APPROVED)
+        self.assertEqual(leave.approved_by, self.admin_user)
+
+    def test_edit_leave_already_approved(self):
+        """Can edit approved leaves."""
+        from django.test import Client
+
+        leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date,
+            end_date=self.test_date,
+            status=Leave.Status.APPROVED,
+            approved_by=self.admin_user,
+        )
+
+        client = Client()
+        client.force_login(self.admin_user)
+
+        # Should be able to access edit form
+        response = client.get(f"/dashboard/leaves/{leave.pk}/edit/")
+        self.assertEqual(response.status_code, 200)
+
+        # Should be able to change status
+        response = client.post(
+            f"/dashboard/leaves/{leave.pk}/edit/",
+            data={
+                "employee": self.employee.pk,
+                "start_date": str(self.test_date),
+                "end_date": str(self.test_date),
+                "reason": leave.reason,
+                "status": Leave.Status.REJECTED,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        leave.refresh_from_db()
+        self.assertEqual(leave.status, Leave.Status.REJECTED)
