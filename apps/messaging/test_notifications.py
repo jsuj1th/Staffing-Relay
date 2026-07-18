@@ -1,7 +1,8 @@
-"""Tests for SMS notification system with batching."""
-from datetime import timedelta
+"""Tests for SMS notification system with batching and menu flow."""
+from datetime import timedelta, date
 from django.test import TestCase
 from django.utils import timezone
+from django.core.cache import cache
 
 from apps.accounts.models import Employee
 from apps.leaves.models import Leave
@@ -16,7 +17,15 @@ from .notifications import (
     notify_leave_approved,
     notify_leave_rejected,
 )
-from .leave_menu import parse_date_input, build_confirmation_message
+from .leave_menu import parse_date_input, build_confirmation_message, LeaveMenuState
+from .session import (
+    get_user_session,
+    set_user_session,
+    clear_user_session,
+    start_leave_menu,
+    process_menu_response,
+    is_in_menu_flow,
+)
 
 
 class NotificationQueueTests(TestCase):
@@ -228,3 +237,110 @@ class LeaveMenuTests(TestCase):
         self.assertIn("Summer trip", msg)
         self.assertIn("YES", msg)
         self.assertIn("NO", msg)
+
+
+class MenuSessionTests(TestCase):
+    def setUp(self):
+        """Set up test data for menu flow."""
+        self.location = Location.objects.create(
+            name="Test Hospital",
+            address="123 Main St",
+            city="Testville",
+            state="TX",
+        )
+
+        self.employee = Employee.objects.create(
+            name="Test Employee",
+            phone="+1555000001",
+            employee_type=Employee.Type.PROVIDER,
+            location=self.location,
+        )
+
+        self.phone = "+1555000001"
+        cache.clear()
+
+    def tearDown(self):
+        """Clean up cache."""
+        cache.clear()
+
+    def test_session_management(self):
+        """Test storing and retrieving session state."""
+        session_data = {
+            "state": LeaveMenuState.AWAITING_TYPE,
+            "leave_type": None,
+        }
+
+        set_user_session(self.phone, session_data)
+        retrieved = get_user_session(self.phone)
+
+        self.assertEqual(retrieved["state"], LeaveMenuState.AWAITING_TYPE)
+        self.assertIsNone(retrieved["leave_type"])
+
+    def test_clear_session(self):
+        """Test clearing session."""
+        session_data = {"state": LeaveMenuState.AWAITING_TYPE}
+        set_user_session(self.phone, session_data)
+
+        # Verify it's set
+        self.assertTrue(is_in_menu_flow(self.phone))
+
+        # Clear it
+        clear_user_session(self.phone)
+
+        # Verify it's gone
+        self.assertFalse(is_in_menu_flow(self.phone))
+
+    def test_process_leave_type_response(self):
+        """Test processing leave type selection."""
+        start_leave_menu(self.phone)
+
+        # User selects type 2 (Vacation)
+        reply, leave = process_menu_response(self.phone, "2", self.employee)
+
+        # Should transition to awaiting dates
+        session = get_user_session(self.phone)
+        self.assertEqual(session["state"], LeaveMenuState.AWAITING_DATES)
+        self.assertEqual(session["leave_type"], "VACATION")
+
+    def test_process_date_response(self):
+        """Test processing date entry."""
+        start_leave_menu(self.phone)
+        process_menu_response(self.phone, "2", self.employee)  # Select type
+
+        # User enters dates
+        reply, leave = process_menu_response(self.phone, "0725-0730", self.employee)
+
+        # Should transition to awaiting reason
+        session = get_user_session(self.phone)
+        self.assertEqual(session["state"], LeaveMenuState.AWAITING_REASON)
+        self.assertIsNotNone(session["start_date"])
+        self.assertIsNotNone(session["end_date"])
+
+    def test_complete_leave_menu_flow(self):
+        """Test complete leave request via menu."""
+        start_leave_menu(self.phone)
+
+        # Step 1: Select type
+        process_menu_response(self.phone, "2", self.employee)
+
+        # Step 2: Enter dates
+        process_menu_response(self.phone, "0725-0730", self.employee)
+
+        # Step 3: Enter reason
+        reply, _ = process_menu_response(self.phone, "Summer vacation", self.employee)
+
+        # Should now be in confirmation step
+        self.assertIn("YES", reply)
+        self.assertIn("NO", reply)
+        self.assertIn("Vacation", reply)
+
+    def test_cancel_at_any_step(self):
+        """Test cancelling at different steps."""
+        start_leave_menu(self.phone)
+        process_menu_response(self.phone, "2", self.employee)
+
+        # Cancel after type selection
+        reply, _ = process_menu_response(self.phone, "CANCEL", self.employee)
+
+        self.assertIn("cancelled", reply.lower())
+        self.assertFalse(is_in_menu_flow(self.phone))

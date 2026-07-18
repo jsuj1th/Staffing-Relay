@@ -77,12 +77,18 @@ def _handle_inbound_sms(event):
 
     logger.info("Webhook received: from=%s", from_number)
 
-    # Look up employee
-    employee = Employee.objects.filter(phone=from_number, is_active=True).first()
+    # Look up employee (normalize phone number for lookup)
+    normalized_number = _normalize_phone(from_number)
+    employee = Employee.objects.filter(phone__in=[from_number, normalized_number], is_active=True).first()
     if employee is None:
         logger.info("Employee not found: phone=%s", from_number)
 
     reply, leave = _process_command(from_number, text, employee)
+
+    # Menu flow handles its own sending (reply=None)
+    if reply is None:
+        logger.debug("Menu-driven response, skipping reply send")
+        return
 
     # Log it
     SmsLog.objects.create(
@@ -101,6 +107,23 @@ def _process_command(from_number: str, text: str, employee):
     if employee is None:
         return "Your number is not registered in our system. Please contact HR.", None
 
+    # Check if user is in menu flow
+    from apps.messaging.session import is_in_menu_flow, process_menu_response, start_leave_menu
+
+    if is_in_menu_flow(from_number):
+        # Process menu response
+        result = process_menu_response(from_number, text, employee)
+        if result is not None:
+            return result
+        # Menu sends its own prompt, return None to skip sending reply
+        return None, None
+
+    # Check if user wants to start menu flow
+    if text.strip().upper() == "LEAVE":
+        start_leave_menu(from_number)
+        return None, None  # Menu sends prompt, skip reply
+
+    # Parse command normally
     parsed = parse_sms(text)
     logger.debug("Parsed command: %s", parsed.command)
 
@@ -117,7 +140,7 @@ def _process_command(from_number: str, text: str, employee):
         return _handle_leave(employee, parsed)
 
     # Unknown command
-    return f"Command not recognized.\n\n{HELP_TEXT}", None
+    return f"Command not recognized.\nReply LEAVE for guided menu or {HELP_TEXT}", None
 
 
 def _handle_leave(employee, parsed):
@@ -270,3 +293,15 @@ def _notify_managers_extreme(employee, leave):
     for mgr in managers:
         if mgr.phone:
             send_sms(mgr.phone, msg)
+
+
+def _normalize_phone(phone: str) -> str:
+    """Normalize phone number for lookup. Handles with/without +1 prefix."""
+    phone = phone.strip()
+    if phone.startswith("+1"):
+        return phone
+    if phone.startswith("1") and len(phone) == 11:
+        return "+" + phone
+    if len(phone) == 10:
+        return "+1" + phone
+    return phone
