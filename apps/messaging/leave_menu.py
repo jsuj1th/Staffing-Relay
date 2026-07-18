@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 class LeaveMenuState:
     IDLE = "IDLE"  # Not in menu
     AWAITING_TYPE = "AWAITING_TYPE"  # Asked for leave type
-    AWAITING_DATES = "AWAITING_DATES"  # Asked for dates
+    AWAITING_START_DATE = "AWAITING_START_DATE"  # Asked for start date
+    AWAITING_DURATION = "AWAITING_DURATION"  # Asked: single day or range?
+    AWAITING_END_DATE = "AWAITING_END_DATE"  # Asked for end date (if range)
     AWAITING_REASON = "AWAITING_REASON"  # Asked for reason
     AWAITING_CONFIRMATION = "AWAITING_CONFIRMATION"  # Ready to submit
 
@@ -41,8 +43,8 @@ LEAVE_TYPE_NAMES = {
 }
 
 
-def send_menu_prompt(phone, step=1):
-    """Send the initial menu prompt to user."""
+def send_menu_prompt(phone, step=1, context=None):
+    """Send menu prompt to user."""
     if step == 1:
         message = (
             "📋 RELAY LEAVE REQUEST\n\n"
@@ -56,14 +58,49 @@ def send_menu_prompt(phone, step=1):
         )
     elif step == 2:
         message = (
-            "📅 ENTER DATES\n\n"
-            "Format: MMDD-MMDD (range) or MMDD (single day)\n\n"
+            "📅 START DATE\n\n"
+            "Format: MMDD (month + day)\n\n"
             "Examples:\n"
-            "0725 = July 25 (today or later)\n"
-            "0725-0730 = July 25-30\n\n"
+            "0725 = July 25, 2026\n"
+            "0105 = January 5, 2027\n\n"
             "Or reply CANCEL to abort"
         )
     elif step == 3:
+        if context and "start_date" in context:
+            start_date_obj = (
+                context["start_date"]
+                if isinstance(context["start_date"], datetime)
+                else datetime.fromisoformat(context["start_date"]).date()
+            )
+            start_str = start_date_obj.strftime("%a, %b %d")
+            message = (
+                f"📅 DURATION\n\n"
+                f"Start: {start_str}\n\n"
+                f"Reply:\n"
+                f"S = Single day ({start_str})\n"
+                f"R = Range (then enter end date)\n\n"
+                f"Example: Reply 'S' or 'R'"
+            )
+        else:
+            message = "Reply: S = Single day, R = Range"
+    elif step == 4:
+        if context and "start_date" in context:
+            start_date_obj = (
+                context["start_date"]
+                if isinstance(context["start_date"], datetime)
+                else datetime.fromisoformat(context["start_date"]).date()
+            )
+            start_str = start_date_obj.strftime("%a, %b %d")
+            message = (
+                f"📅 END DATE\n\n"
+                f"Start: {start_str}\n"
+                f"End: ?\n\n"
+                f"Format: MMDD (same as start date entry)\n\n"
+                f"Example: 0730 = July 30, 2026"
+            )
+        else:
+            message = "📅 END DATE\n\nFormat: MMDD"
+    elif step == 5:
         message = (
             "📝 REASON (optional)\n\n"
             "Brief reason for leave:\n"
@@ -78,66 +115,51 @@ def send_menu_prompt(phone, step=1):
 
 def parse_date_input(date_str, reference_year=None):
     """
-    Parse leave date from user input.
+    Parse a single leave date from user input.
 
-    Formats accepted:
-    - MMDD: Single date (assumed current or next year)
-    - MMDD-MMDD: Date range
+    Format: MMDD (month + day)
+    Returns: (parsed_date, None)
+
+    Example:
+    - "0725" → July 25, 2026 (if in future)
+    - "0105" → January 5, 2027 (next year if today is in 2026)
     """
     if reference_year is None:
         today = datetime.now().date()
         reference_year = today.year
 
     try:
-        # Single date: MMDD
-        if len(date_str) == 4 and "-" not in date_str:
-            month = int(date_str[:2])
-            day = int(date_str[2:4])
-            date = datetime(reference_year, month, day).date()
+        date_str = date_str.strip()
 
-            # If date is in past, assume next year
-            today = datetime.now().date()
-            if date < today:
-                date = datetime(reference_year + 1, month, day).date()
+        if len(date_str) != 4:
+            return None, None
 
-            return date, date
+        month = int(date_str[:2])
+        day = int(date_str[2:4])
 
-        # Range: MMDD-MMDD
-        elif "-" in date_str:
-            parts = date_str.split("-")
-            if len(parts) != 2:
+        if month < 1 or month > 12 or day < 1 or day > 31:
+            return None, None
+
+        # Try current year first
+        try:
+            parsed_date = datetime(reference_year, month, day).date()
+        except ValueError:
+            # Invalid date (e.g., Feb 30)
+            return None, None
+
+        today = datetime.now().date()
+
+        # If date is in past, assume next year
+        if parsed_date < today:
+            try:
+                parsed_date = datetime(reference_year + 1, month, day).date()
+            except ValueError:
                 return None, None
 
-            start_str, end_str = parts
-            if len(start_str) != 4 or len(end_str) != 4:
-                return None, None
-
-            start_month = int(start_str[:2])
-            start_day = int(start_str[2:4])
-            start_date = datetime(reference_year, start_month, start_day).date()
-
-            end_month = int(end_str[:2])
-            end_day = int(end_str[2:4])
-
-            # Handle year boundary (e.g., 1220-0105)
-            end_year = reference_year
-            if end_month < start_month:
-                end_year = reference_year + 1
-
-            end_date = datetime(end_year, end_month, end_day).date()
-
-            # If dates in past, assume next year
-            today = datetime.now().date()
-            if end_date < today:
-                start_date = datetime(reference_year + 1, start_month, start_day).date()
-                end_date = datetime(reference_year + 1, end_month, end_day).date()
-
-            return start_date, end_date
+        return parsed_date, None
 
     except (ValueError, IndexError):
         return None, None
-
-    return None, None
 
 
 def build_confirmation_message(leave_type, start_date, end_date, reason=None):
@@ -188,29 +210,29 @@ def handle_leave_type_response(response_text):
 
 def handle_date_response(response_text):
     """
-    Parse user's date input.
+    Parse user's date input (single date only).
 
-    Returns: (start_date, end_date, error_message)
+    Returns: (parsed_date, None, error_message)
     """
     response = response_text.strip().upper()
 
     if response == "CANCEL":
         return None, None, "Leave request cancelled."
 
-    start_date, end_date = parse_date_input(response_text)
+    parsed_date, _ = parse_date_input(response_text)
 
-    if start_date is None:
+    if parsed_date is None:
         return None, None, (
             "Invalid date format.\n"
-            "Use: MMDD or MMDD-MMDD\n"
-            "Example: 0725 or 0725-0730"
+            "Use: MMDD (month + day)\n"
+            "Example: 0725 = July 25, 2026"
         )
 
     today = datetime.now().date()
-    if end_date < today:
-        return None, None, "Leave date cannot be in the past."
+    if parsed_date < today:
+        return None, None, "Date cannot be in the past. Try again."
 
-    return start_date, end_date, None
+    return parsed_date, None, None
 
 
 def handle_reason_response(response_text):

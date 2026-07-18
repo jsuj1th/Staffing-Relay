@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars and fill in the values marked REPLACE.
+# Never commit terraform.tfvars (it may contain db_password).
+
+aws_region  = "us-east-1"
+project     = "hospital-lms"
+environment = "prod"
+
+# Comma-separated hosts Django will accept, e.g. "relay.example.com,www.relay.example.com"
+allowed_hosts = "REPLACE_ME.example.com"
+
+# ACM certificate ARN for the ALB HTTPS listener (must be in us-east-1, issued for your domain).
+acm_certificate_arn = "arn:aws:acm:us-east-1:REPLACE_ACCOUNT_ID:certificate/REPLACE_ME"
+
+# RDS master password. Keep this out of source control; consider passing via
+# TF_VAR_db_password or a secrets manager instead of committing to tfvars.
+db_password = "REPLACE_ME_STRONG_PASSWORD"
+
+db_instance_class = "db.t4g.micro"
+redis_node_type    = "cache.t4g.micro"
+web_desired_count  = 2
+
+# Initial image; CI overwrites the running task def with the freshly built tag.
+container_image = "REPLACE_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/hospital-lms:latest"
+
+vpc_cidr = "10.0.0.0/16"
+az_count = 2

@@ -3,7 +3,7 @@ Tests for SMS parser and webhook handler.
 """
 import json
 from datetime import date, timedelta
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import Employee
@@ -67,6 +67,9 @@ class SmsParserTests(TestCase):
         self.assertEqual(cmd.command, "leave")
 
 
+# Pin to "dev mode" (no signature check) so these tests exercise message
+# handling regardless of whether a real TELNYX_PUBLIC_KEY is set in .env.
+@override_settings(TELNYX_PUBLIC_KEY="")
 class WebhookTests(TestCase):
     def setUp(self):
         self.client = Client()

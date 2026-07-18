@@ -178,10 +178,19 @@ def process_menu_response(phone, text, employee):
                 start_date = date.fromisoformat(session["start_date"])
                 end_date = date.fromisoformat(session["end_date"])
 
-                # Evaluate leave
+                # Evaluate leave coverage
                 status, message, ratio_before, ratio_after = evaluate_leave(
                     employee, start_date, end_date
                 )
+
+                # Menu leaves always PENDING (await admin review), unless auto-reject
+                # Only REJECTED if coverage impossible; EXTREME becomes PENDING (manager alert only)
+                if status == Leave.Status.REJECTED:
+                    final_status = Leave.Status.REJECTED
+                    final_message = message
+                else:
+                    final_status = Leave.Status.PENDING
+                    final_message = "Your leave request has been submitted and is awaiting admin review."
 
                 # Create leave
                 leave = Leave.objects.create(
@@ -189,10 +198,10 @@ def process_menu_response(phone, text, employee):
                     start_date=start_date,
                     end_date=end_date,
                     reason=session["reason"],
-                    status=status,
+                    status=final_status,
                     ratio_before=ratio_before,
                     ratio_after=ratio_after,
-                    internal_note=f"[MENU] {session['leave_type']} - {message}",
+                    internal_note=f"[MENU] {session['leave_type']} - Coverage: {message}",
                 )
 
                 clear_user_session(phone)
@@ -200,10 +209,10 @@ def process_menu_response(phone, text, employee):
                     "Leave created via menu: id=%d employee=%s status=%s",
                     leave.id,
                     employee.name,
-                    status,
+                    final_status,
                 )
 
-                return message, leave
+                return final_message, leave
 
             except Exception as e:
                 logger.error("Error creating leave from menu: %s", e)

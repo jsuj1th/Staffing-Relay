@@ -1,0 +1,17 @@
+locals {
+  name_prefix = "${var.project}"
+
+  common_tags = {
+    Project     = var.project
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+
+  azs = slice(data.aws_availability_zones.available.names, 0, var.az_count)
+}
+
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+data "aws_availability_zones" "available" {
+  state = "available"
+}

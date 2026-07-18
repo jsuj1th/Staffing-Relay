@@ -244,6 +244,8 @@ class LeaveMenuTests(TestCase):
 class MenuSessionTests(TestCase):
     def setUp(self):
         """Set up test data for menu flow."""
+        from apps.shifts.models import Shift
+
         self.location = Location.objects.create(
             name="Test Hospital",
             address="123 Main St",
@@ -258,7 +260,31 @@ class MenuSessionTests(TestCase):
             location=self.location,
         )
 
+        # Add backup employees with shifts on test date (July 25) so coverage is OK
+        today = timezone.localdate()
+        test_date = today.replace(month=7, day=25)
+        if test_date < today:
+            test_date = test_date.replace(year=test_date.year + 1)
+
+        backup_employees = []
+        for i in range(3):
+            emp = Employee.objects.create(
+                name=f"Backup Employee {i}",
+                phone=f"+155500000{i+2}",
+                employee_type=Employee.Type.PROVIDER,
+                location=self.location,
+            )
+            backup_employees.append(emp)
+            # Assign shift on test date
+            Shift.objects.create(
+                employee=emp,
+                date=test_date,
+                start_time="09:00",
+                end_time="17:00",
+            )
+
         self.phone = "+1555000001"
+        self.test_date = test_date
         cache.clear()
 
     def tearDown(self):
@@ -478,8 +504,17 @@ class MenuUnrecognizedTextTests(TestCase):
         self.assertIsNotNone(leave)
         self.assertEqual(leave.employee, self.employee)
         self.assertEqual(leave.reason, "Summer vacation")
+        # Menu leaves should never be auto-approved (APPROVED status)
+        # They can be PENDING (awaiting admin) or REJECTED (insufficient coverage)
+        # But NOT APPROVED (that's dashboard-only)
+        self.assertIn(leave.status, [Leave.Status.PENDING, Leave.Status.REJECTED])
         # Verify it's a vacation leave by checking internal_note contains VACATION
         self.assertIn("VACATION", leave.internal_note)
+        # If approved by coverage, should mention admin review. If rejected, should mention rejection.
+        self.assertTrue(
+            "awaiting admin review" in reply.lower() or "cannot be approved" in reply.lower(),
+            f"Unexpected reply message: {reply}"
+        )
 
         # Verify session was cleared
         self.assertFalse(is_in_menu_flow(self.phone))

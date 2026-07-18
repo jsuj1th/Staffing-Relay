@@ -6,6 +6,13 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 
 # HTTPS
 SECURE_SSL_REDIRECT = True
+# The ALB terminates TLS and forwards plain HTTP to the container, setting
+# X-Forwarded-Proto. Without this, Django treats every request as insecure and
+# SECURE_SSL_REDIRECT sends it into a redirect loop.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# ALB health checks hit /health/ directly over HTTP (no X-Forwarded-Proto), so
+# exempt it from the redirect or the target group never sees a 200.
+SECURE_REDIRECT_EXEMPT = [r"^health/$"]
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 31536000
