@@ -61,6 +61,14 @@ def queue_notification(
         scheduled_send_at=scheduled_send_at,
     )
 
+    if DEBUG:
+        logger.debug(f"Notification queued: type={notification_type}, employee={employee.name}, message={message_body}")
+        pending_count = NotificationQueue.objects.filter(
+            employee=employee,
+            is_sent=False,
+        ).count()
+        logger.debug(f"Pending notifications: {pending_count} for employee={employee.name}")
+
     logger.info(
         "Notification queued: employee=%s type=%s send_at=%s",
         employee.name,
@@ -127,7 +135,11 @@ def send_notification_batch(employee):
 
     # Send SMS
     try:
+        if DEBUG:
+            logger.debug(f"Sending batch: {len(pending)} notifications to {employee.name}")
         send_sms(employee.phone, combined_message)
+        if DEBUG:
+            logger.debug(f"Batch sent successfully: employee={employee.name}, count={len(pending)}")
         logger.info(
             "Notification batch sent: employee=%s count=%d",
             employee.name,

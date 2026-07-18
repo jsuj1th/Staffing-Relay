@@ -10,8 +10,10 @@ Integer arithmetic is used throughout to avoid float drift at the 3:2 boundary.
 """
 import logging
 from datetime import date, timedelta
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
+DEBUG = getattr(settings, 'SMS_DEBUG', False)
 
 
 def get_active_counts(location_id: int, start_date: date, end_date: date, exclude_employee_id: int = None):
@@ -68,6 +70,8 @@ def get_active_counts(location_id: int, start_date: date, end_date: date, exclud
         employee_type=Employee.Type.MEDICAL_ASSISTANT
     ).exclude(id__in=on_leave_ids).count()
 
+    if DEBUG:
+        logger.debug(f"Active counts: location={location_id}, {start_date} to {end_date}, providers={providers}, mas={mas}")
     logger.debug(
         "get_active_counts: location=%s start=%s end=%s providers=%d mas=%d",
         location_id, start_date, end_date, providers, mas,
@@ -80,6 +84,8 @@ def _ratio_outcome(p_after: int, ma_after: int, p_before: int, ma_before: int):
     from apps.leaves.models import Leave
 
     if p_after <= 0 or ma_after <= 0:
+        if DEBUG:
+            logger.debug(f"Ratio decision: NO_COVERAGE - providers={p_after}, mas={ma_after}")
         return (
             Leave.Status.REJECTED,
             "Sorry, your leave cannot be approved — it would leave the location with no coverage. Please contact your manager.",
@@ -89,6 +95,8 @@ def _ratio_outcome(p_after: int, ma_after: int, p_before: int, ma_before: int):
 
     # p/ma > 3/2  ⟺  p*2 > ma*3
     if p_after * 2 > ma_after * 3:
+        if DEBUG:
+            logger.debug(f"Ratio decision: REJECTED - ratio {p_after}:{ma_after} exceeds 3:2 threshold")
         return (
             Leave.Status.REJECTED,
             "Sorry, your leave cannot be approved due to staffing requirements. Please contact your manager.",
@@ -98,6 +106,8 @@ def _ratio_outcome(p_after: int, ma_after: int, p_before: int, ma_before: int):
 
     if p_after > ma_after:
         # Between 1:1 and 3:2 — extreme, allowed but flagged
+        if DEBUG:
+            logger.debug(f"Ratio decision: EXTREME - ratio {p_after}:{ma_after} is between 1:1 and 3:2")
         return (
             Leave.Status.EXTREME,
             "Your leave has been noted. Please coordinate with your team to ensure coverage.",
@@ -106,6 +116,8 @@ def _ratio_outcome(p_after: int, ma_after: int, p_before: int, ma_before: int):
         )
 
     # p_after <= ma_after — normal or ideal
+    if DEBUG:
+        logger.debug(f"Ratio decision: APPROVED - ratio {p_after}:{ma_after} is ideal")
     return (
         Leave.Status.APPROVED,
         "Your leave request has been approved. Have a great time off!",
@@ -153,13 +165,13 @@ def evaluate_leave(employee, start_date: date, end_date: date):
 
     current_day = start_date
     while current_day <= end_date:
-        logger.debug(
-            "evaluate_leave: checking day=%s employee=%s",
-            current_day, employee.name,
-        )
+        if DEBUG:
+            logger.debug(f"Checking day: {current_day} for employee={employee.name}")
         p_before, ma_before = get_active_counts(loc_id, current_day, current_day, exclude_employee_id=employee.id)
         p_after = p_before - (1 if is_provider else 0)
         ma_after = ma_before - (0 if is_provider else 1)
+        if DEBUG:
+            logger.debug(f"Day {current_day}: before={p_before}P:{ma_before}MA, after={p_after}P:{ma_after}MA")
 
         result = _ratio_outcome(p_after, ma_after, p_before, ma_before)
         day_status = result[0]
@@ -173,6 +185,8 @@ def evaluate_leave(employee, start_date: date, end_date: date):
 
         current_day += timedelta(days=1)
 
+    if DEBUG:
+        logger.debug(f"Final decision: status={worst_result[0]}, before={worst_result[2]}, after={worst_result[3]}")
     logger.info(
         "Leave decision: employee=%s status=%s ratio_before=%s ratio_after=%s",
         employee.name, worst_result[0], worst_result[2], worst_result[3],

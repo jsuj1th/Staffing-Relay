@@ -14,6 +14,7 @@ from apps.messaging.parser import parse_sms, HELP_TEXT
 from apps.messaging.sms import send_sms
 
 logger = logging.getLogger(__name__)
+DEBUG = getattr(settings, 'SMS_DEBUG', False)
 
 
 @csrf_exempt
@@ -75,11 +76,15 @@ def _handle_inbound_sms(event):
         logger.error("Could not parse inbound SMS payload: %s", exc)
         return
 
+    if DEBUG:
+        logger.debug(f"SMS received: from={from_number}, text={text}")
     logger.info("Webhook received: from=%s", from_number)
 
     # Look up employee (normalize phone number for lookup)
     normalized_number = _normalize_phone(from_number)
     employee = Employee.objects.filter(phone__in=[from_number, normalized_number], is_active=True).first()
+    if DEBUG:
+        logger.debug(f"Employee found: {employee.name if employee else 'NOT FOUND'}")
     if employee is None:
         logger.info("Employee not found: phone=%s", from_number)
 
@@ -87,6 +92,8 @@ def _handle_inbound_sms(event):
 
     # Menu flow handles its own sending (reply=None)
     if reply is None:
+        if DEBUG:
+            logger.debug("Menu-driven response, skipping reply send")
         logger.debug("Menu-driven response, skipping reply send")
         return
 
@@ -99,6 +106,8 @@ def _handle_inbound_sms(event):
         leave=leave,
     )
 
+    if DEBUG:
+        logger.debug(f"SMS response: to={from_number}, reply={reply}")
     send_sms(from_number, reply)
 
 
@@ -136,6 +145,8 @@ def _process_command(from_number: str, text: str, employee):
 
     # Parse command normally
     parsed = parse_sms(text)
+    if DEBUG:
+        logger.debug(f"Parsed command: {parsed.command}, start={parsed.start_date}, end={parsed.end_date}")
     logger.debug("Parsed command: %s", parsed.command)
 
     if parsed.command == "help":
@@ -185,6 +196,12 @@ def _handle_leave(employee, parsed):
         employee, parsed.start_date, parsed.end_date
     )
 
+    if DEBUG:
+        logger.debug(f"Leave evaluation: employee={employee.name}, {parsed.start_date} to {parsed.end_date}")
+        logger.debug(f"Coverage before: providers={ratio_before['providers'] if ratio_before else 'N/A'}, mas={ratio_before['mas'] if ratio_before else 'N/A'}")
+        logger.debug(f"Coverage after: providers={ratio_after['providers'] if ratio_after else 'N/A'}, mas={ratio_after['mas'] if ratio_after else 'N/A'}")
+        logger.debug(f"Decision: {status} ({message})")
+
     leave = Leave.objects.create(
         employee=employee,
         start_date=parsed.start_date,
@@ -195,6 +212,8 @@ def _handle_leave(employee, parsed):
         ratio_after=ratio_after,
         internal_note=_build_internal_note(status, ratio_before, ratio_after),
     )
+    if DEBUG:
+        logger.debug(f"Leave created: id={leave.id}, employee={employee.name}, status={status}")
     logger.info("Leave created: id=%d status=%s", leave.id, leave.status)
 
     # Notify manager on extreme coverage

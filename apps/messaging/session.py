@@ -7,6 +7,7 @@ import logging
 from datetime import timedelta, date
 from django.core.cache import cache
 from django.utils import timezone
+from django.conf import settings
 
 from .leave_menu import (
     LeaveMenuState,
@@ -21,6 +22,7 @@ from .leave_menu import (
 )
 
 logger = logging.getLogger(__name__)
+DEBUG = getattr(settings, 'SMS_DEBUG', False)
 
 
 def get_user_session(phone):
@@ -33,12 +35,16 @@ def set_user_session(phone, state):
     """Store user's menu session state. TTL: 24 hours."""
     key = f"leave_menu_session:{phone}"
     cache.set(key, state, timeout=86400)
+    if DEBUG:
+        logger.debug(f"Session updated: phone={phone}, new_state={state.get('state')}, data={state}")
 
 
 def clear_user_session(phone):
     """Clear user's session (leave request completed or cancelled)."""
     key = f"leave_menu_session:{phone}"
     cache.delete(key)
+    if DEBUG:
+        logger.debug(f"Session cleared: phone={phone}")
 
 
 def start_leave_menu(phone):
@@ -52,6 +58,8 @@ def start_leave_menu(phone):
         "is_range": False,
         "reason": None,
     }
+    if DEBUG:
+        logger.debug(f"Session created: phone={phone}, initial_state={session['state']}")
     set_user_session(phone, session)
     send_menu_prompt(phone, step=2)  # Start date prompt (skip type)
     return None  # Menu sends prompt
@@ -63,6 +71,8 @@ def start_main_menu(phone):
         "state": LeaveMenuState.AWAITING_MAIN_CHOICE,
         "started_at": timezone.now().isoformat(),
     }
+    if DEBUG:
+        logger.debug(f"Session created: phone={phone}, initial_state={session['state']}")
     set_user_session(phone, session)
     send_main_menu(phone)
     return None  # Menu sends prompt
@@ -80,7 +90,8 @@ def process_menu_response(phone, text, employee):
         return None  # Not in menu flow
 
     state = session.get("state")
-    logger.debug("Menu state: phone=%s state=%s text=%s", phone, state, text)
+    if DEBUG:
+        logger.debug(f"Menu transition incoming: phone={phone}, current_state={state}, user_input={text}")
 
     # Handle CANCEL at any point (except main menu, where it's an invalid option)
     if text.strip().upper() == "CANCEL" and state != LeaveMenuState.AWAITING_MAIN_CHOICE:
@@ -93,12 +104,15 @@ def process_menu_response(phone, text, employee):
 
         if response == "1":
             # Option 1: Request Leave - skip type, go directly to start date
+            old_state = session["state"]
             session["state"] = LeaveMenuState.AWAITING_START_DATE
             session["leave_type"] = "LEAVE"  # Default type (not tracked)
             session["start_date"] = None
             session["end_date"] = None
             session["is_range"] = False
             session["reason"] = None
+            if DEBUG:
+                logger.debug(f"Menu transition: {old_state} → {session['state']}, user_input={response}")
             set_user_session(phone, session)
             send_menu_prompt(phone, step=2)  # Start date prompt (skip type)
             return None, None  # Menu sends prompt
@@ -168,7 +182,10 @@ def process_menu_response(phone, text, employee):
             return error, None
 
         session["start_date"] = start_date.isoformat() if start_date else None
+        old_state = session["state"]
         session["state"] = LeaveMenuState.AWAITING_DURATION
+        if DEBUG:
+            logger.debug(f"Menu transition: {old_state} → {session['state']}, start_date={session['start_date']}")
         set_user_session(phone, session)
 
         # Send duration prompt with context
@@ -184,7 +201,10 @@ def process_menu_response(phone, text, employee):
             start_date = date.fromisoformat(session["start_date"])
             session["end_date"] = start_date.isoformat()
             session["is_range"] = False
+            old_state = session["state"]
             session["state"] = LeaveMenuState.AWAITING_REASON
+            if DEBUG:
+                logger.debug(f"Menu transition: {old_state} → {session['state']}, duration=single_day")
             set_user_session(phone, session)
             send_menu_prompt(phone, step=5)
             return None, None
@@ -192,7 +212,10 @@ def process_menu_response(phone, text, employee):
         elif response == "R":
             # Range - ask for end date
             session["is_range"] = True
+            old_state = session["state"]
             session["state"] = LeaveMenuState.AWAITING_END_DATE
+            if DEBUG:
+                logger.debug(f"Menu transition: {old_state} → {session['state']}, duration=range")
             set_user_session(phone, session)
             send_menu_prompt(phone, step=4, context=session)
             return None, None
@@ -211,7 +234,10 @@ def process_menu_response(phone, text, employee):
             return "End date cannot be before start date. Try again.", None
 
         session["end_date"] = end_date.isoformat()
+        old_state = session["state"]
         session["state"] = LeaveMenuState.AWAITING_REASON
+        if DEBUG:
+            logger.debug(f"Menu transition: {old_state} → {session['state']}, end_date={session['end_date']}")
         set_user_session(phone, session)
         send_menu_prompt(phone, step=5)
         return None, None
@@ -223,7 +249,10 @@ def process_menu_response(phone, text, employee):
             return error, None
 
         session["reason"] = reason
+        old_state = session["state"]
         session["state"] = LeaveMenuState.AWAITING_CONFIRMATION
+        if DEBUG:
+            logger.debug(f"Menu transition: {old_state} → {session['state']}, reason={reason}")
         set_user_session(phone, session)
 
         # Build confirmation
@@ -254,6 +283,11 @@ def process_menu_response(phone, text, employee):
                 status, message, ratio_before, ratio_after = evaluate_leave(
                     employee, start_date, end_date
                 )
+                if DEBUG:
+                    logger.debug(f"Leave evaluation: employee={employee.name}, {start_date} to {end_date}")
+                    logger.debug(f"Coverage before: providers={ratio_before['providers'] if ratio_before else 'N/A'}, mas={ratio_before['mas'] if ratio_before else 'N/A'}")
+                    logger.debug(f"Coverage after: providers={ratio_after['providers'] if ratio_after else 'N/A'}, mas={ratio_after['mas'] if ratio_after else 'N/A'}")
+                    logger.debug(f"Decision: {status} ({message})")
 
                 # Menu leaves always PENDING (await admin review), unless auto-reject
                 # Only REJECTED if coverage impossible; EXTREME becomes PENDING (manager alert only)
@@ -275,6 +309,8 @@ def process_menu_response(phone, text, employee):
                     ratio_after=ratio_after,
                     internal_note=f"[MENU] {session['leave_type']} - Coverage: {message}",
                 )
+                if DEBUG:
+                    logger.debug(f"Leave created: id={leave.id}, employee={employee.name}, status={final_status}")
 
                 clear_user_session(phone)
                 logger.info(
