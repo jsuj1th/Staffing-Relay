@@ -1,5 +1,6 @@
 """Tests for SMS notification system with batching and menu flow."""
 from datetime import timedelta, date
+from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.utils import timezone
 from django.core.cache import cache
@@ -26,6 +27,7 @@ from .session import (
     process_menu_response,
     is_in_menu_flow,
 )
+from .views import _process_command
 
 
 class NotificationQueueTests(TestCase):
@@ -201,25 +203,25 @@ class LeaveMenuTests(TestCase):
         future_month = today.month if today.day < 15 else (today.month % 12) + 1
         future_day = 20
 
-        start, end = parse_date_input(f"{future_month:02d}{future_day:02d}")
+        parsed, _ = parse_date_input(f"{future_month:02d}{future_day:02d}")
 
-        self.assertIsNotNone(start)
-        self.assertEqual(start, end)
+        self.assertIsNotNone(parsed)
 
-    def test_parse_date_range(self):
-        """Parse date range input (MMDD-MMDD)."""
-        start, end = parse_date_input("0725-0730")
-
-        self.assertIsNotNone(start)
-        self.assertIsNotNone(end)
-        self.assertEqual((end - start).days, 5)
+    def test_parse_past_date_becomes_next_year(self):
+        """Past dates automatically shift to next year."""
+        # January 5 is likely in the past if we're past Jan 5
+        today = timezone.localdate()
+        if today.month > 1 or (today.month == 1 and today.day > 5):
+            parsed, _ = parse_date_input("0105")
+            self.assertEqual(parsed.year, today.year + 1)
+            self.assertEqual(parsed.month, 1)
+            self.assertEqual(parsed.day, 5)
 
     def test_parse_invalid_date(self):
         """Invalid date returns None."""
-        start, end = parse_date_input("9999")
+        parsed, _ = parse_date_input("9999")
 
-        self.assertIsNone(start)
-        self.assertIsNone(end)
+        self.assertIsNone(parsed)
 
     def test_build_confirmation_message(self):
         """Build formatted confirmation message."""
@@ -297,24 +299,25 @@ class MenuSessionTests(TestCase):
         # User selects type 2 (Vacation)
         reply, leave = process_menu_response(self.phone, "2", self.employee)
 
-        # Should transition to awaiting dates
+        # Should transition to awaiting start date
         session = get_user_session(self.phone)
-        self.assertEqual(session["state"], LeaveMenuState.AWAITING_DATES)
+        self.assertEqual(session["state"], LeaveMenuState.AWAITING_START_DATE)
         self.assertEqual(session["leave_type"], "VACATION")
+        self.assertIsNone(reply)  # Menu sends prompt separately
 
     def test_process_date_response(self):
         """Test processing date entry."""
         start_leave_menu(self.phone)
         process_menu_response(self.phone, "2", self.employee)  # Select type
 
-        # User enters dates
-        reply, leave = process_menu_response(self.phone, "0725-0730", self.employee)
+        # User enters start date
+        reply, leave = process_menu_response(self.phone, "0725", self.employee)
 
-        # Should transition to awaiting reason
+        # Should transition to awaiting duration (single or range)
         session = get_user_session(self.phone)
-        self.assertEqual(session["state"], LeaveMenuState.AWAITING_REASON)
+        self.assertEqual(session["state"], LeaveMenuState.AWAITING_DURATION)
         self.assertIsNotNone(session["start_date"])
-        self.assertIsNotNone(session["end_date"])
+        self.assertIsNone(reply)  # Menu sends prompt separately
 
     def test_complete_leave_menu_flow(self):
         """Test complete leave request via menu."""
@@ -323,10 +326,13 @@ class MenuSessionTests(TestCase):
         # Step 1: Select type
         process_menu_response(self.phone, "2", self.employee)
 
-        # Step 2: Enter dates
-        process_menu_response(self.phone, "0725-0730", self.employee)
+        # Step 2: Enter start date
+        process_menu_response(self.phone, "0725", self.employee)
 
-        # Step 3: Enter reason
+        # Step 3: Choose single day
+        process_menu_response(self.phone, "S", self.employee)
+
+        # Step 4: Enter reason
         reply, _ = process_menu_response(self.phone, "Summer vacation", self.employee)
 
         # Should now be in confirmation step
@@ -343,4 +349,137 @@ class MenuSessionTests(TestCase):
         reply, _ = process_menu_response(self.phone, "CANCEL", self.employee)
 
         self.assertIn("cancelled", reply.lower())
+        self.assertFalse(is_in_menu_flow(self.phone))
+
+
+class MenuUnrecognizedTextTests(TestCase):
+    def setUp(self):
+        """Set up test data for unrecognized text tests."""
+        self.location = Location.objects.create(
+            name="Test Hospital",
+            address="123 Main St",
+            city="Testville",
+            state="TX",
+        )
+
+        self.employee = Employee.objects.create(
+            name="Test Employee",
+            phone="+1555000001",
+            employee_type=Employee.Type.PROVIDER,
+            location=self.location,
+        )
+
+        self.phone = "+1555000001"
+        cache.clear()
+
+    def tearDown(self):
+        """Clean up cache."""
+        cache.clear()
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_unrecognized_text_starts_menu(self, mock_send_sms):
+        """Verify various unrecognized inputs trigger menu."""
+        # Use strings that won't match any parser keywords
+        unrecognized_strings = ["HI", "hey", "xyz123", "random garbage"]
+
+        for text in unrecognized_strings:
+            # Clear session before each test
+            cache.clear()
+            mock_send_sms.reset_mock()
+
+            # Process the unrecognized text
+            reply, leave = _process_command(self.phone, text, self.employee)
+
+            # Verify menu was started (reply is None, menu sends separately)
+            self.assertIsNone(reply, f"Expected None reply for '{text}', got {reply}")
+            self.assertIsNone(leave)
+
+            # Verify session was created with AWAITING_TYPE state
+            session = get_user_session(self.phone)
+            self.assertIsNotNone(session, f"Session not created for '{text}'")
+            self.assertEqual(
+                session.get("state"),
+                LeaveMenuState.AWAITING_TYPE,
+                f"Expected AWAITING_TYPE state for '{text}', got {session.get('state')}",
+            )
+
+            # Verify menu prompt was sent
+            mock_send_sms.assert_called_once()
+            call_args = mock_send_sms.call_args
+            sent_message = call_args[0][1] if len(call_args[0]) > 1 else call_args.kwargs.get("message", "")
+            self.assertIn("RELAY LEAVE REQUEST", sent_message, f"Menu not sent for '{text}'")
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_menu_flow_from_unrecognized_hi(self, mock_send_sms):
+        """Complete flow starting from unrecognized 'HI' through full menu sequence."""
+        # Step 1: Send "HI" - unrecognized text triggers menu
+        reply, leave = _process_command(self.phone, "HI", self.employee)
+        self.assertIsNone(reply)
+        self.assertIsNone(leave)
+
+        # Verify menu step 1 was sent
+        self.assertEqual(mock_send_sms.call_count, 1)
+        first_call = mock_send_sms.call_args[0][1]
+        self.assertIn("RELAY LEAVE REQUEST", first_call)
+        self.assertIn("leave type", first_call.lower())
+        mock_send_sms.reset_mock()
+
+        # Step 2: Select Vacation (option 2)
+        reply, leave = _process_command(self.phone, "2", self.employee)
+        self.assertIsNone(reply)
+        self.assertIsNone(leave)
+
+        # Verify menu step 2 was sent (start date prompt)
+        self.assertEqual(mock_send_sms.call_count, 1)
+        second_call = mock_send_sms.call_args[0][1]
+        self.assertIn("START DATE", second_call)
+        mock_send_sms.reset_mock()
+
+        # Step 3: Enter start date (0725 = July 25)
+        reply, leave = _process_command(self.phone, "0725", self.employee)
+        self.assertIsNone(reply)
+        self.assertIsNone(leave)
+
+        # Verify menu step 3 was sent (duration prompt)
+        self.assertEqual(mock_send_sms.call_count, 1)
+        third_call = mock_send_sms.call_args[0][1]
+        self.assertIn("DURATION", third_call)
+        self.assertIn("Single day", third_call)
+        mock_send_sms.reset_mock()
+
+        # Step 4: Choose single day
+        reply, leave = _process_command(self.phone, "S", self.employee)
+        self.assertIsNone(reply)
+        self.assertIsNone(leave)
+
+        # Verify menu step 5 was sent (reason prompt)
+        self.assertEqual(mock_send_sms.call_count, 1)
+        fourth_call = mock_send_sms.call_args[0][1]
+        self.assertIn("REASON", fourth_call)
+        mock_send_sms.reset_mock()
+
+        # Step 5: Enter reason
+        reply, leave = _process_command(self.phone, "Summer vacation", self.employee)
+
+        # Should return confirmation message (reply is not None at confirmation step)
+        self.assertIsNotNone(reply)
+        self.assertIsNone(leave)  # Leave not created yet
+        self.assertIn("YES", reply)
+        self.assertIn("NO", reply)
+        self.assertIn("Vacation", reply)
+        self.assertIn("Summer vacation", reply)
+        mock_send_sms.reset_mock()
+
+        # Step 6: Confirm YES
+        reply, leave = _process_command(self.phone, "YES", self.employee)
+
+        # Should return success message and create leave
+        self.assertIsNotNone(reply)
+        self.assertIsNotNone(leave)
+        self.assertEqual(leave.employee, self.employee)
+        self.assertEqual(leave.reason, "Summer vacation")
+        # Verify it's a vacation leave by checking internal_note contains VACATION
+        self.assertIn("VACATION", leave.internal_note)
+
+        # Verify session was cleared
         self.assertFalse(is_in_menu_flow(self.phone))
