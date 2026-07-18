@@ -35,6 +35,7 @@ class NotificationQueue(models.Model):
         SHIFT_ASSIGNED = "SHIFT_ASSIGNED", "Shift Assigned"
         LEAVE_APPROVED = "LEAVE_APPROVED", "Leave Approved"
         LEAVE_REJECTED = "LEAVE_REJECTED", "Leave Rejected"
+        LEAVE_CANCELLED = "LEAVE_CANCELLED", "Leave Cancelled"
 
     employee = models.ForeignKey(
         "accounts.Employee",

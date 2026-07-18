@@ -79,6 +79,10 @@
       </div>
       <div class="col-md-3 d-flex align-items-center gap-2 flex-wrap">
         <span class="relay-badge-approved" style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;">APPROVED</span>
+        <form method="post" action="{% url 'dashboard:leave_cancel' leave.pk %}" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="relay-btn" onclick="return confirm('Cancel this leave?');">Cancel</button>
+        </form>
         <a href="{% url 'dashboard:leave_edit' leave.pk %}" class="relay-btn">Edit</a>
       </div>
     </div>
@@ -191,6 +195,10 @@
         <form method="post" action="{% url 'dashboard:leave_approve' leave.pk %}" class="d-inline">
           {% csrf_token %}
           <button type="submit" class="relay-btn relay-btn-approve">Approve</button>
+        </form>
+        <form method="post" action="{% url 'dashboard:leave_cancel' leave.pk %}" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="relay-btn" onclick="return confirm('Cancel this leave?');">Cancel</button>
         </form>
         <a href="{% url 'dashboard:leave_edit' leave.pk %}" class="relay-btn">Edit</a>
       </div>

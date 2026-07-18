@@ -131,6 +131,13 @@ def send_notification_batch(employee):
             lines.append(f"  {leave_notif.message_body}")
         lines.append("")
 
+    if NotificationQueue.NotificationType.LEAVE_CANCELLED in by_type:
+        leaves = by_type[NotificationQueue.NotificationType.LEAVE_CANCELLED]
+        lines.append(f"❌ LEAVE CANCELLED ({len(leaves)}):")
+        for leave_notif in leaves:
+            lines.append(f"  {leave_notif.message_body}")
+        lines.append("")
+
     combined_message = "\n".join(lines).strip()
 
     # Send SMS
@@ -239,6 +246,26 @@ def notify_leave_rejected(leave, send_immediately=True):
     return queue_notification(
         employee=leave.employee,
         notification_type=NotificationQueue.NotificationType.LEAVE_REJECTED,
+        message_body=message,
+        related_object_id=leave.id,
+        send_immediately=send_immediately,
+    )
+
+
+def notify_leave_cancelled(leave, send_immediately=True):
+    """Notify employee of cancelled leave."""
+    duration = (leave.end_date - leave.start_date).days + 1
+    dates = (
+        f"{leave.start_date.strftime('%b %d')}"
+        if leave.start_date == leave.end_date
+        else f"{leave.start_date.strftime('%b %d')} - {leave.end_date.strftime('%b %d')}"
+    )
+
+    message = f"Your leave ({dates}, {duration} day{'s' if duration > 1 else ''}) has been CANCELLED"
+
+    return queue_notification(
+        employee=leave.employee,
+        notification_type=NotificationQueue.NotificationType.LEAVE_CANCELLED,
         message_body=message,
         related_object_id=leave.id,
         send_immediately=send_immediately,

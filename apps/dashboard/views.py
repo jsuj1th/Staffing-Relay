@@ -665,6 +665,29 @@ def leave_reject(request, pk):
 
 
 @login_required
+def leave_cancel(request, pk):
+    """Admin cancels an approved or pending leave."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    leave = get_object_or_404(Leave, pk=pk)
+    old_status = leave.status
+    leave.status = Leave.Status.CANCELLED
+    leave.approved_by = request.user
+    leave.save(update_fields=["status", "approved_by", "updated_at"])
+
+    logger.info("Leave cancelled: id=%d by=%s", leave.id, request.user)
+
+    # Notify employee via SMS
+    from apps.messaging.notifications import notify_leave_cancelled
+
+    notify_leave_cancelled(leave, send_immediately=True)
+
+    messages.success(request, f"Leave cancelled and employee notified via SMS.")
+    return redirect("dashboard:leaves")
+
+
+@login_required
 def leave_edit(request, pk):
     """Admin edits a leave record."""
     from .forms import LeaveForm

@@ -17,6 +17,7 @@ urlpatterns = [
     path("leaves/<int:pk>/decision/", views.leave_decision, name="leave_decision"),
     path("leaves/<int:pk>/approve/", views.leave_approve, name="leave_approve"),
     path("leaves/<int:pk>/reject/", views.leave_reject, name="leave_reject"),
+    path("leaves/<int:pk>/cancel/", views.leave_cancel, name="leave_cancel"),
     path("leaves/<int:pk>/edit/", views.leave_edit, name="leave_edit"),
     path("shifts/", views.shift_day, name="shifts"),
     path("shifts/new/", views.shift_create, name="shift_create"),

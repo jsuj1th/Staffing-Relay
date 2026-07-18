@@ -17,6 +17,7 @@ from .notifications import (
     notify_shift_assigned,
     notify_leave_approved,
     notify_leave_rejected,
+    notify_leave_cancelled,
 )
 from .leave_menu import parse_date_input, build_confirmation_message, LeaveMenuState
 from .session import (
@@ -677,6 +678,50 @@ class MainMenuTests(TestCase):
         self.assertFalse(is_in_menu_flow(self.phone))
 
     @patch("apps.messaging.leave_menu.send_sms")
+    def test_cancel_leave_via_sms_sends_notification(self, mock_send_sms):
+        """User cancels leave via SMS menu, notification is sent."""
+        # Create an approved leave
+        today = timezone.localdate()
+        test_date = today.replace(month=7, day=25)
+        if test_date < today:
+            test_date = test_date.replace(year=test_date.year + 1)
+
+        leave_obj = Leave.objects.create(
+            employee=self.employee,
+            start_date=test_date,
+            end_date=test_date + timedelta(days=5),
+            status=Leave.Status.APPROVED,
+        )
+
+        # Start main menu
+        reply, leave = _process_command(self.phone, "MENU", self.employee)
+        self.assertIsNone(reply)
+        mock_send_sms.reset_mock()
+
+        # Select option 3 (Cancel Leave)
+        reply, leave = _process_command(self.phone, "3", self.employee)
+
+        # Should return success message
+        self.assertIsNotNone(reply)
+        self.assertIsNone(leave)
+        self.assertIn("cancelled", reply.lower())
+
+        # Verify leave was cancelled
+        leave_obj.refresh_from_db()
+        self.assertEqual(leave_obj.status, Leave.Status.CANCELLED)
+
+        # Verify notification was queued
+        notif = NotificationQueue.objects.filter(
+            employee=self.employee,
+            notification_type=NotificationQueue.NotificationType.LEAVE_CANCELLED,
+        ).first()
+        self.assertIsNotNone(notif)
+        self.assertIn("CANCELLED", notif.message_body)
+        self.assertIn("6 days", notif.message_body)
+        # Should be marked as sent (send_immediately=True)
+        self.assertTrue(notif.is_sent)
+
+    @patch("apps.messaging.leave_menu.send_sms")
     def test_main_menu_option_4_shows_help(self, mock_send_sms):
         """Main menu option 4 shows help."""
         # Start main menu
@@ -992,3 +1037,77 @@ class AdminLeaveManagementTests(TestCase):
 
         leave.refresh_from_db()
         self.assertEqual(leave.status, Leave.Status.REJECTED)
+
+    def test_leave_approved_sends_notification(self):
+        """Approve button sends notification with correct message format."""
+        from django.test import Client
+
+        leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date,
+            end_date=self.test_date + timedelta(days=5),
+            status=Leave.Status.PENDING,
+        )
+
+        client = Client()
+        client.force_login(self.admin_user)
+        response = client.post(
+            f"/dashboard/leaves/{leave.pk}/approve/",
+            follow=True,
+        )
+
+        # Check redirect to list
+        self.assertEqual(response.status_code, 200)
+
+        # Verify leave was approved
+        leave.refresh_from_db()
+        self.assertEqual(leave.status, Leave.Status.APPROVED)
+
+        # Verify notification was queued with correct format
+        notif = NotificationQueue.objects.filter(
+            employee=self.employee,
+            notification_type=NotificationQueue.NotificationType.LEAVE_APPROVED,
+        ).first()
+        self.assertIsNotNone(notif)
+        # Message should include date range and day count
+        self.assertIn("APPROVED", notif.message_body)
+        self.assertIn("6 days", notif.message_body)  # Jul 25-30 is 6 days
+        # Should be marked as sent (send_immediately=True)
+        self.assertTrue(notif.is_sent)
+
+    def test_cancel_leave_via_dashboard_sends_notification(self):
+        """Cancel button via dashboard sends notification."""
+        from django.test import Client
+
+        leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=self.test_date,
+            end_date=self.test_date + timedelta(days=5),
+            status=Leave.Status.APPROVED,
+        )
+
+        client = Client()
+        client.force_login(self.admin_user)
+        response = client.post(
+            f"/dashboard/leaves/{leave.pk}/cancel/",
+            follow=True,
+        )
+
+        # Check redirect to list
+        self.assertEqual(response.status_code, 200)
+
+        # Verify leave was cancelled
+        leave.refresh_from_db()
+        self.assertEqual(leave.status, Leave.Status.CANCELLED)
+        self.assertEqual(leave.approved_by, self.admin_user)
+
+        # Verify notification was queued
+        notif = NotificationQueue.objects.filter(
+            employee=self.employee,
+            notification_type=NotificationQueue.NotificationType.LEAVE_CANCELLED,
+        ).first()
+        self.assertIsNotNone(notif)
+        self.assertIn("CANCELLED", notif.message_body)
+        self.assertIn("6 days", notif.message_body)
+        # Should be marked as sent (send_immediately=True)
+        self.assertTrue(notif.is_sent)

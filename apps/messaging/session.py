@@ -142,6 +142,8 @@ def process_menu_response(phone, text, employee):
                 leave = upcoming[0]
                 leave.status = Leave.Status.CANCELLED
                 leave.save()
+                from apps.messaging.notifications import notify_leave_cancelled
+                notify_leave_cancelled(leave, send_immediately=True)
                 clear_user_session(phone)
                 return f"Your leave from {leave.start_date} to {leave.end_date} has been cancelled.", None
 
