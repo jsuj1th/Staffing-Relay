@@ -139,8 +139,8 @@ def _process_command(from_number: str, text: str, employee):
     if parsed.command == "leave":
         return _handle_leave(employee, parsed)
 
-    # Unknown command
-    return f"Command not recognized.\nReply LEAVE for guided menu or {HELP_TEXT}", None
+    # Unknown command - start menu instead
+    return start_leave_menu(from_number)
 
 
 def _handle_leave(employee, parsed):
