@@ -779,7 +779,7 @@ class ShiftTimeBlockValidationTests(TestCase):
             'end_time': '14:00',
         })
         self.assertFalse(form.is_valid())
-        self.assertIn('30-minute', str(form.errors))
+        self.assertIn('start_time', form.errors)
 
     def test_shift_time_rejects_invalid_start_time_15_minutes(self):
         """Invalid start time (11:15) is rejected."""
@@ -790,7 +790,7 @@ class ShiftTimeBlockValidationTests(TestCase):
             'end_time': '14:00',
         })
         self.assertFalse(form.is_valid())
-        self.assertIn('30-minute', str(form.errors))
+        self.assertIn('start_time', form.errors)
 
     def test_shift_time_rejects_invalid_end_time_45_minutes(self):
         """Invalid end time (14:45) is rejected."""
@@ -801,7 +801,7 @@ class ShiftTimeBlockValidationTests(TestCase):
             'end_time': '14:45',
         })
         self.assertFalse(form.is_valid())
-        self.assertIn('30-minute', str(form.errors))
+        self.assertIn('end_time', form.errors)
 
     def test_shift_time_rejects_invalid_end_time_20_minutes(self):
         """Invalid end time (14:20) is rejected."""
@@ -812,7 +812,7 @@ class ShiftTimeBlockValidationTests(TestCase):
             'end_time': '14:20',
         })
         self.assertFalse(form.is_valid())
-        self.assertIn('30-minute', str(form.errors))
+        self.assertIn('end_time', form.errors)
 
     def test_shift_time_accepts_valid_start_time_00_minutes(self):
         """Valid start time (10:00) is accepted."""
@@ -864,25 +864,27 @@ class ShiftTimeBlockValidationTests(TestCase):
         })
         self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
 
-    def test_shift_time_accepts_midnight_boundaries(self):
-        """Times at midnight (00:00) are accepted."""
+    def test_shift_time_rejects_before_business_hours(self):
+        """Times before 7am (e.g. 00:00) are outside business hours and rejected."""
         form = ShiftForm(data={
             'employee': self.employee.id,
             'date': str(self.test_date),
             'start_time': '00:00',
             'end_time': '08:00',
         })
-        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+        self.assertFalse(form.is_valid())
+        self.assertIn('start_time', form.errors)
 
-    def test_shift_time_accepts_evening_boundaries(self):
-        """Times at evening (23:00, 23:30) are accepted."""
+    def test_shift_time_rejects_after_business_hours(self):
+        """Times after 6:30pm (e.g. 23:00) are outside business hours and rejected."""
         form = ShiftForm(data={
             'employee': self.employee.id,
             'date': str(self.test_date),
             'start_time': '23:00',
             'end_time': '23:30',
         })
-        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+        self.assertFalse(form.is_valid())
+        self.assertIn('start_time', form.errors)
 
     def test_shift_time_rejects_both_invalid_times(self):
         """Both invalid times are rejected (shows one error)."""
@@ -893,8 +895,9 @@ class ShiftTimeBlockValidationTests(TestCase):
             'end_time': '14:45',
         })
         self.assertFalse(form.is_valid())
-        # Should have at least one error about 30-minute blocks
-        self.assertIn('30-minute', str(form.errors))
+        # Out-of-block times aren't valid dropdown choices, so both fields error.
+        self.assertIn('start_time', form.errors)
+        self.assertIn('end_time', form.errors)
 
     def test_shift_form_creates_valid_shift(self):
         """Valid form data creates a shift in the database."""
