@@ -8,7 +8,7 @@ Instead of free-form text, users navigate through a guided menu:
   4. Confirm or cancel
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from .models import SmsLog
 from .sms import send_sms
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Session states for tracking where user is in the menu flow
 class LeaveMenuState:
     IDLE = "IDLE"  # Not in menu
+    AWAITING_MAIN_CHOICE = "AWAITING_MAIN_CHOICE"  # Asked for main menu option
     AWAITING_TYPE = "AWAITING_TYPE"  # Asked for leave type
     AWAITING_START_DATE = "AWAITING_START_DATE"  # Asked for start date
     AWAITING_DURATION = "AWAITING_DURATION"  # Asked: single day or range?
@@ -41,6 +42,20 @@ LEAVE_TYPE_NAMES = {
     "MEDICAL": "Medical Leave",
     "OTHER": "Other",
 }
+
+
+def send_main_menu(phone):
+    """Send main menu to user."""
+    message = (
+        "📋 RELAY MENU\n\n"
+        "1 = Request Leave\n"
+        "2 = Check Leave Status\n"
+        "3 = Cancel Leave\n"
+        "4 = Help\n\n"
+        "Reply with: 1, 2, 3, or 4"
+    )
+    send_sms(phone, message)
+    logger.info("Main menu sent: phone=%s", phone)
 
 
 def send_menu_prompt(phone, step=1, context=None):
@@ -243,3 +258,58 @@ def handle_reason_response(response_text):
         return "", None
 
     return response_text.strip(), None
+
+
+def build_status_message(employee):
+    """Build leave status message for employee."""
+    from apps.leaves.models import Leave
+    from django.utils import timezone
+
+    today = timezone.localdate()
+
+    # Get upcoming approved/pending leaves
+    upcoming = Leave.objects.filter(
+        employee=employee,
+        status__in=[Leave.Status.PENDING, Leave.Status.APPROVED, Leave.Status.EXTREME],
+        end_date__gte=today,
+    ).order_by("start_date")
+
+    # Get recent rejections (past 30 days)
+    cutoff_date = today - timedelta(days=30)
+    recent_rejections = Leave.objects.filter(
+        employee=employee,
+        status=Leave.Status.REJECTED,
+        created_at__gte=cutoff_date,
+    ).order_by("-created_at")
+
+    lines = ["📊 YOUR LEAVE STATUS\n"]
+
+    if upcoming.exists():
+        lines.append(f"Upcoming ({upcoming.count()}):")
+        for leave in upcoming[:5]:  # Show up to 5 upcoming
+            date_str = (
+                str(leave.start_date)
+                if leave.start_date == leave.end_date
+                else f"{leave.start_date}–{leave.end_date}"
+            )
+            status_icon = "✅" if leave.status in (Leave.Status.APPROVED, Leave.Status.EXTREME) else "⏳"
+            display_status = "Approved" if leave.status in (Leave.Status.APPROVED, Leave.Status.EXTREME) else "Pending"
+            lines.append(f"{status_icon} {date_str} ({display_status})")
+        if upcoming.count() > 5:
+            lines.append(f"... and {upcoming.count() - 5} more")
+    else:
+        lines.append("No upcoming leaves.")
+
+    if recent_rejections.exists():
+        lines.append(f"\nRecent Rejections ({recent_rejections.count()}):")
+        for leave in recent_rejections[:3]:  # Show up to 3 rejections
+            date_str = (
+                str(leave.start_date)
+                if leave.start_date == leave.end_date
+                else f"{leave.start_date}–{leave.end_date}"
+            )
+            lines.append(f"❌ {date_str}")
+        if recent_rejections.count() > 3:
+            lines.append(f"... and {recent_rejections.count() - 3} more")
+
+    return "\n".join(lines)

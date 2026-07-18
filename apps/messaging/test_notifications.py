@@ -24,6 +24,7 @@ from .session import (
     set_user_session,
     clear_user_session,
     start_leave_menu,
+    start_main_menu,
     process_menu_response,
     is_in_menu_flow,
 )
@@ -518,3 +519,250 @@ class MenuUnrecognizedTextTests(TestCase):
 
         # Verify session was cleared
         self.assertFalse(is_in_menu_flow(self.phone))
+
+
+class MainMenuTests(TestCase):
+    def setUp(self):
+        """Set up test data for main menu tests."""
+        self.location = Location.objects.create(
+            name="Test Hospital",
+            address="123 Main St",
+            city="Testville",
+            state="TX",
+        )
+
+        self.employee = Employee.objects.create(
+            name="Test Employee",
+            phone="+1555000001",
+            employee_type=Employee.Type.PROVIDER,
+            location=self.location,
+        )
+
+        self.phone = "+1555000001"
+        cache.clear()
+
+    def tearDown(self):
+        """Clean up cache."""
+        cache.clear()
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_main_menu_triggered_by_menu_command(self, mock_send_sms):
+        """MENU command triggers main menu prompt."""
+        reply, leave = _process_command(self.phone, "MENU", self.employee)
+
+        # Menu sends its own prompt, so reply should be None
+        self.assertIsNone(reply)
+        self.assertIsNone(leave)
+
+        # Verify session was created
+        session = get_user_session(self.phone)
+        self.assertIsNotNone(session)
+        self.assertEqual(session["state"], LeaveMenuState.AWAITING_MAIN_CHOICE)
+
+        # Verify main menu was sent
+        mock_send_sms.assert_called_once()
+        sent_message = mock_send_sms.call_args[0][1]
+        self.assertIn("RELAY MENU", sent_message)
+        self.assertIn("1 = Request Leave", sent_message)
+        self.assertIn("2 = Check Leave Status", sent_message)
+        self.assertIn("3 = Cancel Leave", sent_message)
+        self.assertIn("4 = Help", sent_message)
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_status_command_shows_leaves(self, mock_send_sms):
+        """STATUS command displays leave status without session."""
+        # Create some test leaves
+        today = timezone.localdate()
+        test_date = today.replace(month=7, day=25)
+        if test_date < today:
+            test_date = test_date.replace(year=test_date.year + 1)
+
+        pending_leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=test_date,
+            end_date=test_date,
+            status=Leave.Status.PENDING,
+        )
+
+        approved_leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=test_date + timedelta(days=5),
+            end_date=test_date + timedelta(days=7),
+            status=Leave.Status.APPROVED,
+        )
+
+        rejected_leave = Leave.objects.create(
+            employee=self.employee,
+            start_date=today - timedelta(days=10),
+            end_date=today - timedelta(days=10),
+            status=Leave.Status.REJECTED,
+        )
+
+        # Send STATUS command
+        reply, leave = _process_command(self.phone, "STATUS", self.employee)
+
+        # Should return status message (not None)
+        self.assertIsNotNone(reply)
+        self.assertIsNone(leave)
+        self.assertIn("YOUR LEAVE STATUS", reply)
+        self.assertIn("Upcoming", reply)
+        self.assertIn("Pending", reply)
+        self.assertIn("Approved", reply)
+        self.assertIn("Rejections", reply)
+
+        # Should not create a session
+        session = get_user_session(self.phone)
+        self.assertFalse(session)
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_status_from_main_menu(self, mock_send_sms):
+        """Main menu option 2 shows leave status."""
+        # Create test leave
+        today = timezone.localdate()
+        test_date = today.replace(month=7, day=25)
+        if test_date < today:
+            test_date = test_date.replace(year=test_date.year + 1)
+
+        Leave.objects.create(
+            employee=self.employee,
+            start_date=test_date,
+            end_date=test_date,
+            status=Leave.Status.PENDING,
+        )
+
+        # Start main menu
+        reply, leave = _process_command(self.phone, "MENU", self.employee)
+        self.assertIsNone(reply)  # Menu sends prompt
+        mock_send_sms.reset_mock()
+
+        # Select option 2 (Check Leave Status)
+        reply, leave = _process_command(self.phone, "2", self.employee)
+
+        # Should return status message
+        self.assertIsNotNone(reply)
+        self.assertIsNone(leave)
+        self.assertIn("YOUR LEAVE STATUS", reply)
+
+        # Session should be cleared
+        self.assertFalse(is_in_menu_flow(self.phone))
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_main_menu_option_1_starts_leave_request(self, mock_send_sms):
+        """Main menu option 1 starts leave request flow."""
+        # Start main menu
+        reply, leave = _process_command(self.phone, "MENU", self.employee)
+        self.assertIsNone(reply)
+        mock_send_sms.reset_mock()
+
+        # Select option 1 (Request Leave)
+        reply, leave = _process_command(self.phone, "1", self.employee)
+
+        # Should transition to leave request flow (no reply, menu sends prompt)
+        self.assertIsNone(reply)
+        self.assertIsNone(leave)
+
+        # Verify state changed to AWAITING_TYPE
+        session = get_user_session(self.phone)
+        self.assertEqual(session["state"], LeaveMenuState.AWAITING_TYPE)
+
+        # Verify leave type menu was sent
+        mock_send_sms.assert_called_once()
+        sent_message = mock_send_sms.call_args[0][1]
+        self.assertIn("RELAY LEAVE REQUEST", sent_message)
+        self.assertIn("leave type", sent_message.lower())
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_main_menu_option_3_cancels_single_leave(self, mock_send_sms):
+        """Main menu option 3 cancels leave when user has single pending leave."""
+        # Create a pending leave
+        today = timezone.localdate()
+        test_date = today.replace(month=7, day=25)
+        if test_date < today:
+            test_date = test_date.replace(year=test_date.year + 1)
+
+        leave_obj = Leave.objects.create(
+            employee=self.employee,
+            start_date=test_date,
+            end_date=test_date,
+            status=Leave.Status.PENDING,
+        )
+
+        # Start main menu
+        reply, leave = _process_command(self.phone, "MENU", self.employee)
+        self.assertIsNone(reply)
+        mock_send_sms.reset_mock()
+
+        # Select option 3 (Cancel Leave)
+        reply, leave = _process_command(self.phone, "3", self.employee)
+
+        # Should return success message
+        self.assertIsNotNone(reply)
+        self.assertIsNone(leave)
+        self.assertIn("cancelled", reply.lower())
+
+        # Verify leave was cancelled
+        leave_obj.refresh_from_db()
+        self.assertEqual(leave_obj.status, Leave.Status.CANCELLED)
+
+        # Session should be cleared
+        self.assertFalse(is_in_menu_flow(self.phone))
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_main_menu_option_4_shows_help(self, mock_send_sms):
+        """Main menu option 4 shows help."""
+        # Start main menu
+        reply, leave = _process_command(self.phone, "MENU", self.employee)
+        self.assertIsNone(reply)
+        mock_send_sms.reset_mock()
+
+        # Select option 4 (Help)
+        reply, leave = _process_command(self.phone, "4", self.employee)
+
+        # Should return help message
+        self.assertIsNotNone(reply)
+        self.assertIsNone(leave)
+        self.assertIn("HELP", reply)
+        self.assertIn("MENU", reply)
+        self.assertIn("STATUS", reply)
+
+        # Session should be cleared
+        self.assertFalse(is_in_menu_flow(self.phone))
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_main_menu_invalid_option_shows_error(self, mock_send_sms):
+        """Invalid main menu option shows error and resends menu."""
+        # Start main menu
+        reply, leave = _process_command(self.phone, "MENU", self.employee)
+        self.assertIsNone(reply)
+        mock_send_sms.reset_mock()
+
+        # Select invalid option
+        reply, leave = _process_command(self.phone, "5", self.employee)
+
+        # Should return error message
+        self.assertIsNotNone(reply)
+        self.assertIsNone(leave)
+        self.assertIn("Invalid option", reply)
+
+        # Menu should be resent
+        mock_send_sms.assert_called_once()
+        sent_message = mock_send_sms.call_args[0][1]
+        self.assertIn("RELAY MENU", sent_message)
+
+    @patch("apps.messaging.leave_menu.send_sms")
+    def test_leave_command_still_works(self, mock_send_sms):
+        """LEAVE command still works (goes to leave type, not main menu)."""
+        reply, leave = _process_command(self.phone, "LEAVE", self.employee)
+
+        # Menu sends its own prompt
+        self.assertIsNone(reply)
+        self.assertIsNone(leave)
+
+        # Verify state is AWAITING_TYPE (not main menu)
+        session = get_user_session(self.phone)
+        self.assertEqual(session["state"], LeaveMenuState.AWAITING_TYPE)
+
+        # Verify leave request menu was sent (not main menu)
+        mock_send_sms.assert_called_once()
+        sent_message = mock_send_sms.call_args[0][1]
+        self.assertIn("RELAY LEAVE REQUEST", sent_message)

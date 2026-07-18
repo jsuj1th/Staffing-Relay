@@ -11,10 +11,12 @@ from django.utils import timezone
 from .leave_menu import (
     LeaveMenuState,
     send_menu_prompt,
+    send_main_menu,
     handle_leave_type_response,
     handle_date_response,
     handle_reason_response,
     build_confirmation_message,
+    build_status_message,
     LEAVE_TYPE_NAMES,
 )
 
@@ -55,6 +57,17 @@ def start_leave_menu(phone):
     return None  # Menu sends prompt
 
 
+def start_main_menu(phone):
+    """Initialize main menu for user."""
+    session = {
+        "state": LeaveMenuState.AWAITING_MAIN_CHOICE,
+        "started_at": timezone.now().isoformat(),
+    }
+    set_user_session(phone, session)
+    send_main_menu(phone)
+    return None  # Menu sends prompt
+
+
 def process_menu_response(phone, text, employee):
     """
     Process user's response in menu flow.
@@ -69,10 +82,81 @@ def process_menu_response(phone, text, employee):
     state = session.get("state")
     logger.debug("Menu state: phone=%s state=%s text=%s", phone, state, text)
 
-    # Handle CANCEL at any point
-    if text.strip().upper() == "CANCEL":
+    # Handle CANCEL at any point (except main menu, where it's an invalid option)
+    if text.strip().upper() == "CANCEL" and state != LeaveMenuState.AWAITING_MAIN_CHOICE:
         clear_user_session(phone)
         return "Leave request cancelled.", None
+
+    # Main menu choice
+    if state == LeaveMenuState.AWAITING_MAIN_CHOICE:
+        response = text.strip().upper()
+
+        if response == "1":
+            # Option 1: Request Leave - transition to leave type selection
+            session["state"] = LeaveMenuState.AWAITING_TYPE
+            session["leave_type"] = None
+            session["start_date"] = None
+            session["end_date"] = None
+            session["is_range"] = False
+            session["reason"] = None
+            set_user_session(phone, session)
+            send_menu_prompt(phone, step=1)
+            return None, None  # Menu sends prompt
+
+        elif response == "2":
+            # Option 2: Check Leave Status
+            clear_user_session(phone)
+            status_msg = build_status_message(employee)
+            return status_msg, None
+
+        elif response == "3":
+            # Option 3: Cancel Leave - show pending leaves to cancel
+            from apps.leaves.models import Leave
+            today = timezone.localdate()
+            upcoming = Leave.objects.filter(
+                employee=employee,
+                status__in=[Leave.Status.PENDING, Leave.Status.APPROVED, Leave.Status.EXTREME],
+                start_date__gte=today,
+            ).order_by("start_date")
+
+            if not upcoming.exists():
+                clear_user_session(phone)
+                return "You have no upcoming leaves to cancel.", None
+
+            if len(upcoming) == 1:
+                # Single leave - cancel it
+                leave = upcoming[0]
+                leave.status = Leave.Status.CANCELLED
+                leave.save()
+                clear_user_session(phone)
+                return f"Your leave from {leave.start_date} to {leave.end_date} has been cancelled.", None
+
+            # Multiple leaves - ask which one
+            clear_user_session(phone)
+            lines = ["You have multiple upcoming leaves. Reply CANCEL with the start date:"]
+            for lv in upcoming:
+                lines.append(f"  CANCEL {lv.start_date}")
+            return "\n".join(lines), None
+
+        elif response == "4":
+            # Option 4: Help
+            clear_user_session(phone)
+            help_text = (
+                "📞 RELAY HELP\n\n"
+                "Commands:\n"
+                "MENU = Main menu\n"
+                "LEAVE = Request leave\n"
+                "STATUS = Check leave status\n"
+                "CANCEL = Cancel leave\n"
+                "HELP = This message\n\n"
+                "Reply MENU to start."
+            )
+            return help_text, None
+
+        else:
+            # Invalid option - show error and resend main menu
+            send_main_menu(phone)
+            return "Invalid option. Reply with 1, 2, 3, or 4.", None
 
     # Step 1: Awaiting leave type
     if state == LeaveMenuState.AWAITING_TYPE:

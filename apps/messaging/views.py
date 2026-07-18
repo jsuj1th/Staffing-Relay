@@ -108,7 +108,8 @@ def _process_command(from_number: str, text: str, employee):
         return "Your number is not registered in our system. Please contact HR.", None
 
     # Check if user is in menu flow
-    from apps.messaging.session import is_in_menu_flow, process_menu_response, start_leave_menu
+    from apps.messaging.session import is_in_menu_flow, process_menu_response, start_leave_menu, start_main_menu
+    from apps.messaging.leave_menu import build_status_message
 
     if is_in_menu_flow(from_number):
         # Process menu response
@@ -118,7 +119,17 @@ def _process_command(from_number: str, text: str, employee):
         # Menu sends its own prompt, return None to skip sending reply
         return None, None
 
-    # Check if user wants to start menu flow
+    # Check for MENU command (main menu)
+    if text.strip().upper() == "MENU":
+        start_main_menu(from_number)
+        return None, None  # Menu sends prompt, skip reply
+
+    # Check for direct STATUS command (works without session)
+    if text.strip().upper() == "STATUS":
+        status_msg = build_status_message(employee)
+        return status_msg, None
+
+    # Check if user wants to start leave menu with LEAVE command
     if text.strip().upper() == "LEAVE":
         start_leave_menu(from_number)
         return None, None  # Menu sends prompt, skip reply
