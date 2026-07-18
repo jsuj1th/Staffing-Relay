@@ -6,15 +6,20 @@ Features:
 - Combine multiple shift assignments into one SMS
 - Immediate send option for urgent notifications
 - Track all outgoing notifications
+- DEBUG mode: Force immediate sending for testing
 """
 import logging
 from datetime import timedelta
 from django.utils import timezone
+from django.conf import settings
 
 from .models import NotificationQueue, SmsLog
 from .sms import send_sms
 
 logger = logging.getLogger(__name__)
+
+# DEBUG mode: Set to True to send notifications immediately (for testing)
+DEBUG = getattr(settings, 'SMS_DEBUG', False)
 
 
 def queue_notification(
@@ -39,6 +44,11 @@ def queue_notification(
     Returns:
         NotificationQueue object
     """
+    # DEBUG mode: Force immediate sending
+    if DEBUG:
+        send_immediately = True
+        logger.info("DEBUG MODE: Forcing immediate send for notification (employee=%s)", employee.id)
+
     scheduled_send_at = timezone.now() if send_immediately else (
         timezone.now() + timedelta(minutes=batch_window_minutes)
     )

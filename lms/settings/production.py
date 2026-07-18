@@ -4,6 +4,10 @@ import os
 DEBUG = False
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 
+# SMS Debug Mode: When True, all notifications are sent immediately (not batched)
+# In production, this should be False to use normal batching
+SMS_DEBUG = os.getenv("SMS_DEBUG", "false").lower() == "true"
+
 # HTTPS
 SECURE_SSL_REDIRECT = True
 # The ALB terminates TLS and forwards plain HTTP to the container, setting
