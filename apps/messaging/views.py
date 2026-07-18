@@ -140,7 +140,8 @@ def _process_command(from_number: str, text: str, employee):
         return _handle_leave(employee, parsed)
 
     # Unknown command - start menu instead
-    return start_leave_menu(from_number)
+    start_leave_menu(from_number)
+    return None, None
 
 
 def _handle_leave(employee, parsed):
