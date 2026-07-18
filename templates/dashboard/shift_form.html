@@ -50,7 +50,7 @@
         <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
           Start Time *
         </label>
-        <input type="time" name="start_time" required
+        <input type="time" name="start_time" required step="1800"
                value="{{ shift.start_time|time:'H:i' }}"
                style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
       </div>
@@ -58,7 +58,7 @@
         <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
           End Time *
         </label>
-        <input type="time" name="end_time" required
+        <input type="time" name="end_time" required step="1800"
                value="{{ shift.end_time|time:'H:i' }}"
                style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
       </div>

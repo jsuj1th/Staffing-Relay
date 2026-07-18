@@ -1,7 +1,7 @@
 """
 Tests for the dashboard app, particularly leave filtering by period.
 """
-from datetime import date, timedelta
+from datetime import date, timedelta, time
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -9,6 +9,8 @@ from django.utils import timezone
 from apps.accounts.models import Employee
 from apps.locations.models import Location
 from apps.leaves.models import Leave
+from apps.shifts.models import Shift
+from apps.dashboard.forms import ShiftForm
 
 
 class LeaveListViewTests(TestCase):
@@ -746,3 +748,166 @@ class EmployeeLeaveInsightsTests(TestCase):
 
         self.assertEqual(emp1_item['leaves_week'], 1)
         self.assertEqual(emp2_item['leaves_week'], 2)
+
+
+class ShiftTimeBlockValidationTests(TestCase):
+    def setUp(self):
+        """Set up test data for shift time validation."""
+        self.location = Location.objects.create(
+            name="Test Hospital",
+            address="123 Main St",
+            city="Testville",
+            state="TX"
+        )
+
+        self.employee = Employee.objects.create(
+            name="Test Employee",
+            phone="+1555000001",
+            employee_type=Employee.Type.PROVIDER,
+            location=self.location,
+            is_active=True,
+        )
+
+        self.test_date = date(2026, 7, 25)
+
+    def test_shift_time_rejects_invalid_start_time_33_minutes(self):
+        """Invalid start time (10:33) is rejected."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:33',
+            'end_time': '14:00',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('30-minute', str(form.errors))
+
+    def test_shift_time_rejects_invalid_start_time_15_minutes(self):
+        """Invalid start time (11:15) is rejected."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '11:15',
+            'end_time': '14:00',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('30-minute', str(form.errors))
+
+    def test_shift_time_rejects_invalid_end_time_45_minutes(self):
+        """Invalid end time (14:45) is rejected."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:00',
+            'end_time': '14:45',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('30-minute', str(form.errors))
+
+    def test_shift_time_rejects_invalid_end_time_20_minutes(self):
+        """Invalid end time (14:20) is rejected."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:00',
+            'end_time': '14:20',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('30-minute', str(form.errors))
+
+    def test_shift_time_accepts_valid_start_time_00_minutes(self):
+        """Valid start time (10:00) is accepted."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:00',
+            'end_time': '14:00',
+        })
+        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+
+    def test_shift_time_accepts_valid_start_time_30_minutes(self):
+        """Valid start time (10:30) is accepted."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:30',
+            'end_time': '14:00',
+        })
+        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+
+    def test_shift_time_accepts_valid_end_time_00_minutes(self):
+        """Valid end time (14:00) is accepted."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:00',
+            'end_time': '14:00',
+        })
+        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+
+    def test_shift_time_accepts_valid_end_time_30_minutes(self):
+        """Valid end time (14:30) is accepted."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:00',
+            'end_time': '14:30',
+        })
+        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+
+    def test_shift_time_accepts_both_30_min_blocks(self):
+        """Both times on 30-minute blocks are accepted."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:30',
+            'end_time': '11:00',
+        })
+        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+
+    def test_shift_time_accepts_midnight_boundaries(self):
+        """Times at midnight (00:00) are accepted."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '00:00',
+            'end_time': '08:00',
+        })
+        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+
+    def test_shift_time_accepts_evening_boundaries(self):
+        """Times at evening (23:00, 23:30) are accepted."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '23:00',
+            'end_time': '23:30',
+        })
+        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+
+    def test_shift_time_rejects_both_invalid_times(self):
+        """Both invalid times are rejected (shows one error)."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:33',
+            'end_time': '14:45',
+        })
+        self.assertFalse(form.is_valid())
+        # Should have at least one error about 30-minute blocks
+        self.assertIn('30-minute', str(form.errors))
+
+    def test_shift_form_creates_valid_shift(self):
+        """Valid form data creates a shift in the database."""
+        form = ShiftForm(data={
+            'employee': self.employee.id,
+            'date': str(self.test_date),
+            'start_time': '10:00',
+            'end_time': '14:30',
+        })
+        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
+
+        shift = form.save()
+        self.assertEqual(shift.employee, self.employee)
+        self.assertEqual(shift.date, self.test_date)
+        self.assertEqual(shift.start_time, time(10, 0))
+        self.assertEqual(shift.end_time, time(14, 30))
