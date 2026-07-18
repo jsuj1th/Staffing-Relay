@@ -380,7 +380,7 @@ class MenuUnrecognizedTextTests(TestCase):
     def test_unrecognized_text_starts_menu(self, mock_send_sms):
         """Verify various unrecognized inputs trigger menu."""
         # Use strings that won't match any parser keywords
-        unrecognized_strings = ["HI", "hey", "help me", "random garbage"]
+        unrecognized_strings = ["HI", "hey", "xyz123", "random garbage"]
 
         for text in unrecognized_strings:
             # Clear session before each test
