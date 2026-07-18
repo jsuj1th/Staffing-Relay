@@ -203,6 +203,13 @@
         </div>
         <button type="submit" class="sign-in-btn">Sign In →</button>
       </form>
+
+      {% if debug %}
+      <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #D6CBBA;">
+        <p style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #9A8D7E; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">🔧 Debug Mode</p>
+        <a href="{% url 'dashboard:debug_login' %}" style="display: block; width: 100%; font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: #FBF9F4; background: #666; border: none; border-radius: 0; padding: 13px 20px; cursor: pointer; text-decoration: none; text-align: center; transition: background 0.15s;">Skip Login (Admin)</a>
+      </div>
+      {% endif %}
     </div>
   </div>
 

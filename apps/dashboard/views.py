@@ -4,10 +4,12 @@ from datetime import date, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from django.contrib import messages
 from django.http import JsonResponse
 from django.utils import timezone
 from django.db.models import Q
+from django.conf import settings
 
 from apps.accounts.models import Employee
 from apps.locations.models import Location, EmployeeLocation
@@ -16,6 +18,7 @@ from apps.messaging.models import SmsLog
 from apps.messaging.sms import send_sms
 from apps.leaves.ratio import get_active_counts
 from apps.shifts.models import Shift
+from apps.dashboard.forms import ShiftForm
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +34,21 @@ def login_view(request):
             login(request, user)
             return redirect(request.GET.get("next", "dashboard:overview"))
         messages.error(request, "Invalid username or password.")
-    return render(request, "registration/login.html")
+    return render(request, "registration/login.html", {"debug": settings.DEBUG})
+
+
+def debug_login(request):
+    """DEBUG MODE ONLY: Skip login as admin user for development."""
+    if not settings.DEBUG:
+        return redirect("dashboard:login")
+
+    admin_user = User.objects.filter(username='admin').first()
+    if admin_user:
+        login(request, admin_user)
+        return redirect(request.GET.get("next", "dashboard:overview"))
+
+    messages.error(request, "Admin user not found.")
+    return redirect("dashboard:login")
 
 
 def logout_view(request):
@@ -82,7 +99,7 @@ def employee_list(request):
     if location_filter:
         qs = qs.filter(location_id=location_filter)
 
-    today = timezone.localdate()
+    today = timezone.localtime()
     week_ago = today - timedelta(days=7)
     month_ago = today - timedelta(days=30)
 
@@ -378,6 +395,233 @@ def shift_day(request):
 
 
 @login_required
+def weekly_planner(request):
+    """New drag-drop weekly schedule planner."""
+    today = timezone.localdate()
+    location_id = request.GET.get("location", "")
+    date_str = request.GET.get("date", "")
+
+    # Get week start date
+    try:
+        week_date = date.fromisoformat(date_str) if date_str else today
+    except ValueError:
+        week_date = today
+
+    # Get Monday of this week
+    week_start = week_date - timedelta(days=week_date.weekday())
+    week_end = week_start + timedelta(days=6)
+
+    locations = Location.objects.all()
+    selected_location = None
+    available_employees = []
+
+    if location_id:
+        try:
+            selected_location = get_object_or_404(Location, pk=int(location_id))
+            available_employees = Employee.objects.filter(
+                location=selected_location,
+                employee_type__in=[Employee.Type.PROVIDER, Employee.Type.MEDICAL_ASSISTANT],
+                is_active=True,
+            ).order_by("name")
+        except (ValueError, Location.DoesNotExist):
+            pass
+
+    # Get all shifts for this week
+    shifts_by_day = {}
+    if selected_location:
+        shifts = Shift.objects.filter(
+            employee__location=selected_location,
+            date__gte=week_start,
+            date__lte=week_end,
+        ).select_related("employee").order_by("date", "start_time")
+
+        for shift in shifts:
+            day_key = shift.date.isoformat()
+            if day_key not in shifts_by_day:
+                shifts_by_day[day_key] = []
+            shifts_by_day[day_key].append(shift)
+
+    # Per-day leave map: which employees are on leave on each specific date
+    # (a 1-day absence only blocks that day, not the whole week)
+    leave_names_by_date = {}   # iso date -> [names] for display in the day cell
+    leave_ids_by_date = {}     # iso date -> [employee_ids] for JS drop-blocking
+    if selected_location:
+        leaves = Leave.objects.filter(
+            employee__location=selected_location,
+            start_date__lte=week_end,
+            end_date__gte=week_start,
+            status__in=[Leave.Status.APPROVED, Leave.Status.EXTREME],
+        ).select_related("employee")
+        for lv in leaves:
+            d = max(lv.start_date, week_start)
+            last = min(lv.end_date, week_end)
+            while d <= last:
+                key = d.isoformat()
+                leave_names_by_date.setdefault(key, []).append(lv.employee.name)
+                leave_ids_by_date.setdefault(key, []).append(lv.employee_id)
+                d += timedelta(days=1)
+
+    # Build week days
+    days = []
+    for i in range(7):
+        day = week_start + timedelta(days=i)
+        days.append({
+            "date": day,
+            "day_name": day.strftime("%A"),
+            "shifts": shifts_by_day.get(day.isoformat(), []),
+            "on_leave": leave_names_by_date.get(day.isoformat(), []),
+        })
+
+    return render(request, "dashboard/weekly_planner.html", {
+        "locations": locations,
+        "selected_location": selected_location,
+        "week_start": week_start,
+        "week_end": week_end,
+        "days": days,
+        "available_employees": available_employees,
+        "leave_ids_by_date": leave_ids_by_date,
+        "today": today,
+    })
+
+
+@login_required
+def api_add_shift_to_planner(request):
+    """API endpoint: Add shift from weekly planner (drag-drop)."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        employee_id = data.get("employee_id")
+        date_str = data.get("date")
+
+        employee = get_object_or_404(Employee, pk=employee_id)
+        shift_date = date.fromisoformat(date_str)
+
+        # Block scheduling on a day the employee has approved leave
+        if Leave.objects.filter(
+            employee=employee,
+            start_date__lte=shift_date,
+            end_date__gte=shift_date,
+            status__in=[Leave.Status.APPROVED, Leave.Status.EXTREME],
+        ).exists():
+            return JsonResponse(
+                {"error": f"{employee.name} is on leave that day."}, status=400
+            )
+
+        # Times come as "HH:MM" strings; lexical compare == chronological.
+        start_time = data.get("start_time") or "08:00"
+        end_time = data.get("end_time") or "17:00"
+        if end_time <= start_time:
+            return JsonResponse({"error": "End time must be after start time."}, status=400)
+
+        shift = Shift.objects.create(
+            employee=employee,
+            date=shift_date,
+            start_time=start_time,
+            end_time=end_time,
+            created_by=request.user,
+        )
+
+        logger.info(f"Shift created via planner: {employee.name} - {shift_date}")
+
+        # Queue batched SMS notification (same as shift_create form)
+        from apps.messaging.notifications import notify_shift_assigned
+        notify_shift_assigned(shift, send_immediately=False)
+
+        return JsonResponse({
+            "success": True,
+            "shift_id": shift.id,
+            "message": f"Shift added for {employee.name}",
+        })
+    except Exception as e:
+        logger.error(f"Error adding shift: {e}")
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+def api_delete_shift_from_planner(request, shift_id):
+    """API endpoint: Delete shift from planner."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        shift = get_object_or_404(Shift, pk=shift_id)
+        emp_name = shift.employee.name
+        shift.delete()
+        logger.info(f"Shift deleted via planner: {emp_name}")
+        return JsonResponse({"success": True, "message": f"Shift removed for {emp_name}"})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+def api_copy_week(request):
+    """API endpoint: Copy shifts from one week to next week."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        location_id = data.get("location_id")
+        from_date_str = data.get("from_date")
+        to_date_str = data.get("to_date")
+
+        location = get_object_or_404(Location, pk=location_id)
+        from_date = date.fromisoformat(from_date_str)
+        to_date = date.fromisoformat(to_date_str)
+
+        # Get Monday of from_date week
+        from_week = from_date - timedelta(days=from_date.weekday())
+        from_week_end = from_week + timedelta(days=6)
+
+        # Get shifts from source week
+        shifts_to_copy = Shift.objects.filter(
+            employee__location=location,
+            date__gte=from_week,
+            date__lte=from_week_end,
+        )
+
+        # Calculate day offset
+        to_week = to_date - timedelta(days=to_date.weekday())
+        day_offset = (to_week - from_week).days
+
+        # Create new shifts
+        from apps.messaging.notifications import notify_shift_assigned
+        created_count = 0
+        for shift in shifts_to_copy:
+            new_date = shift.date + timedelta(days=day_offset)
+
+            # Check if shift already exists
+            if not Shift.objects.filter(
+                employee=shift.employee,
+                date=new_date,
+                start_time=shift.start_time,
+                end_time=shift.end_time,
+            ).exists():
+                new_shift = Shift.objects.create(
+                    employee=shift.employee,
+                    date=new_date,
+                    start_time=shift.start_time,
+                    end_time=shift.end_time,
+                    created_by=request.user,
+                )
+                # Queue batched SMS (won't spam — batching combines them)
+                notify_shift_assigned(new_shift, send_immediately=False)
+                created_count += 1
+
+        logger.info(f"Week copied: {created_count} shifts created")
+        return JsonResponse({
+            "success": True,
+            "created": created_count,
+            "message": f"{created_count} shifts copied to next week",
+        })
+    except Exception as e:
+        logger.error(f"Error copying week: {e}")
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
 def shift_create(request):
     locations = Location.objects.all()
     preselect_location_id = request.GET.get("location", "")
@@ -388,74 +632,46 @@ def shift_create(request):
     ).select_related("location").order_by("name")
 
     if request.method == "POST":
-        employee_id = request.POST.get("employee_id")
-        shift_date_str = request.POST.get("date", "")
-        start_time = request.POST.get("start_time", "")
-        end_time = request.POST.get("end_time", "")
+        form = ShiftForm(request.POST)
+        logger.debug(f"shift_create POST: form valid={form.is_valid()}, errors={form.errors if not form.is_valid() else 'none'}")
+        if form.is_valid():
+            shift = form.save(commit=False)
+            shift.created_by = request.user
 
-        if not (employee_id and shift_date_str and start_time and end_time):
-            messages.error(request, "Employee, date, start time, and end time are required.")
-            return render(request, "dashboard/shift_form.html", {
-                "locations": locations, "employees": employees, "action": "Add",
-                "preselect_location_id": preselect_location_id,
-                "preselect_date": preselect_date,
-            })
+            repeat_weeks = int(request.POST.get("repeat_weeks", 0) or 0)
+            repeat_weeks = min(max(repeat_weeks, 0), 52)
 
-        try:
-            repeat_weeks = int(request.POST.get("repeat_weeks") or 0)
-        except ValueError:
-            messages.error(request, "Repeat weeks must be a number.")
-            return render(request, "dashboard/shift_form.html", {
-                "locations": locations, "employees": employees, "action": "Add",
-                "preselect_location_id": preselect_location_id,
-                "preselect_date": preselect_date,
-            })
-        repeat_weeks = min(max(repeat_weeks, 0), 52)
+            shift.save()
 
-        try:
-            shift_date = date.fromisoformat(shift_date_str)
-        except ValueError:
-            messages.error(request, "Invalid date.")
-            return render(request, "dashboard/shift_form.html", {
-                "locations": locations, "employees": employees, "action": "Add",
-                "preselect_location_id": preselect_location_id,
-                "preselect_date": preselect_date,
-            })
-
-        employee = get_object_or_404(Employee, pk=employee_id)
-
-        Shift.objects.create(
-            employee=employee, date=shift_date,
-            start_time=start_time, end_time=end_time,
-            created_by=request.user,
-        )
-        for week in range(1, repeat_weeks + 1):
-            Shift.objects.create(
-                employee=employee, date=shift_date + timedelta(weeks=week),
-                start_time=start_time, end_time=end_time,
-                created_by=request.user,
-            )
-
-        logger.info("Shift created: employee=%s date=%s repeat_weeks=%d", employee.name, shift_date, repeat_weeks)
-
-        # Queue SMS notifications for shift assignments
-        from apps.messaging.notifications import notify_shift_assigned
-
-        shift = Shift.objects.get(employee=employee, date=shift_date)
-        notify_shift_assigned(shift, send_immediately=False)  # Batch in 1 hour
-
-        if repeat_weeks:
+            # Create repeated shifts
             for week in range(1, repeat_weeks + 1):
-                repeated_shift = Shift.objects.get(
-                    employee=employee,
-                    date=shift_date + timedelta(weeks=week),
+                Shift.objects.create(
+                    employee=shift.employee, date=shift.date + timedelta(weeks=week),
+                    start_time=shift.start_time, end_time=shift.end_time,
+                    created_by=request.user,
                 )
-                notify_shift_assigned(repeated_shift, send_immediately=False)
 
-        messages.success(request, f"Shift added for {employee.name}" + (f" (repeated {repeat_weeks} weeks)" if repeat_weeks else "") + ". SMS notification queued.")
-        return redirect(f"/dashboard/shifts/?location={employee.location_id}&date={shift_date_str}")
+            logger.info("Shift created: employee=%s date=%s repeat_weeks=%d", shift.employee.name, shift.date, repeat_weeks)
+
+            # Queue SMS notifications for shift assignments
+            from apps.messaging.notifications import notify_shift_assigned
+            notify_shift_assigned(shift, send_immediately=False)
+
+            if repeat_weeks:
+                for week in range(1, repeat_weeks + 1):
+                    repeated_shift = Shift.objects.get(
+                        employee=shift.employee,
+                        date=shift.date + timedelta(weeks=week),
+                    )
+                    notify_shift_assigned(repeated_shift, send_immediately=False)
+
+            messages.success(request, f"Shift added for {shift.employee.name}" + (f" (repeated {repeat_weeks} weeks)" if repeat_weeks else "") + ". SMS notification queued.")
+            return redirect(f"/dashboard/shifts/?location={shift.employee.location_id}&date={shift.date}")
+    else:
+        form = ShiftForm()
 
     return render(request, "dashboard/shift_form.html", {
+        "form": form,
         "locations": locations, "employees": employees, "action": "Add",
         "preselect_location_id": preselect_location_id,
         "preselect_date": preselect_date,

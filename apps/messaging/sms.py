@@ -4,9 +4,17 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+# ponytail: debug SMS guard — everyone but Sujith is test data right now.
+# Empty the allowlist (or delete the guard in send_sms) when real recipients go live.
+DEBUG_SMS_ALLOWLIST = {"+19793449880"}  # Sujith Julakanti
+
 
 def send_sms(to: str, text: str) -> bool:
     """Send an SMS via Telnyx. Returns True on success."""
+    if settings.DEBUG and to not in DEBUG_SMS_ALLOWLIST:
+        logger.info("DEBUG: SMS to %s suppressed (not in debug allowlist)", to)
+        return True
+
     print(f"DEBUG: send_sms called with to={to}")
     if not settings.TELNYX_API_KEY:
         print("DEBUG: API_KEY not set")

@@ -19,7 +19,7 @@
       <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
         Employee *
       </label>
-      <select name="employee_id" required
+      <select name="employee" required
               style="width:100%; font-family:'IBM Plex Sans',sans-serif; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
         <option value="">Select employee...</option>
         {% for emp in employees %}
@@ -50,17 +50,21 @@
         <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
           Start Time *
         </label>
-        <input type="time" name="start_time" required step="1800"
-               value="{{ shift.start_time|time:'H:i' }}"
-               style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+        <select id="id_start_time" name="start_time" required style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+          {% for value, label in form.fields.start_time.choices %}
+            <option value="{{ value }}" {% if form.start_time.value == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div style="flex:1;">
         <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
           End Time *
         </label>
-        <input type="time" name="end_time" required step="1800"
-               value="{{ shift.end_time|time:'H:i' }}"
-               style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+        <select id="id_end_time" name="end_time" required style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+          {% for value, label in form.fields.end_time.choices %}
+            <option value="{{ value }}" {% if form.end_time.value == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
       </div>
     </div>
 
@@ -85,4 +89,52 @@
     </div>
   </form>
 </div>
+
+<script>
+(function() {
+  const startTimeSelect = document.getElementById('id_start_time');
+  const endTimeSelect = document.getElementById('id_end_time');
+
+  if (!startTimeSelect || !endTimeSelect) return;
+
+  const allEndTimeOptions = Array.from(endTimeSelect.options).map(opt => ({
+    value: opt.value,
+    text: opt.text
+  }));
+
+  function updateEndTimeOptions() {
+    const selectedStart = startTimeSelect.value;
+
+    if (!selectedStart) {
+      endTimeSelect.innerHTML = '';
+      allEndTimeOptions.forEach(opt => {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.text = opt.text;
+        endTimeSelect.appendChild(option);
+      });
+      return;
+    }
+
+    const currentEndValue = endTimeSelect.value;
+    endTimeSelect.innerHTML = '';
+
+    allEndTimeOptions.forEach(opt => {
+      if (opt.value && opt.value > selectedStart) {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.text = opt.text;
+        endTimeSelect.appendChild(option);
+      }
+    });
+
+    if (endTimeSelect.querySelector(`[value="${currentEndValue}"]`)) {
+      endTimeSelect.value = currentEndValue;
+    }
+  }
+
+  startTimeSelect.addEventListener('change', updateEndTimeOptions);
+  updateEndTimeOptions();
+})();
+</script>
 {% endblock %}

@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+{% block title %}Weekly Planner — Relay{% endblock %}
+
+{% block content %}
+<style>
+  .planner-container {
+    display: flex;
+    gap: 20px;
+    height: calc(100vh - 200px);
+  }
+
+  .planner-sidebar {
+    width: 280px;
+    background: #FBF9F4;
+    border: 1px solid #E4DACB;
+    padding: 20px;
+    border-radius: 4px;
+    overflow-y: auto;
+  }
+
+  .employee-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .employee-item {
+    padding: 10px;
+    margin: 5px 0;
+    background: white;
+    border: 1px solid #D6CBBA;
+    border-radius: 3px;
+    cursor: move;
+    user-select: none;
+    transition: all 0.2s;
+    font-size: 13px;
+  }
+
+  .employee-item:hover {
+    background: #f5f3ee;
+    border-color: #8A3A2E;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .employee-item.on-leave {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .employee-item.on-leave::after {
+    content: " (On Leave)";
+    font-size: 11px;
+    color: #C1440E;
+  }
+
+  .planner-main {
+    flex: 1;
+    overflow-x: auto;
+  }
+
+  .week-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .week-nav {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn-nav {
+    padding: 8px 16px;
+    background: #8A3A2E;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .btn-nav:hover {
+    background: #712E24;
+  }
+
+  .week-dates {
+    font-size: 14px;
+    color: #666;
+    font-weight: 500;
+  }
+
+  .grid-container {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 12px;
+    min-width: 100%;
+  }
+
+  .day-column {
+    min-width: 140px;
+    border: 1px solid #D6CBBA;
+    background: white;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .day-header {
+    background: #E4DACB;
+    padding: 12px;
+    border-bottom: 1px solid #D6CBBA;
+    text-align: center;
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .day-date {
+    display: block;
+    font-size: 11px;
+    color: #666;
+    font-weight: normal;
+  }
+
+  .drop-zone {
+    min-height: 120px;
+    padding: 10px;
+    background: #FAFAF8;
+  }
+
+  .drop-zone.drag-over {
+    background: #E3F2FD;
+    border: 2px dashed #1976D2;
+  }
+
+  .shift-card {
+    background: #8A3A2E;
+    color: white;
+    padding: 8px;
+    margin: 5px 0;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 1.4;
+    position: relative;
+  }
+
+  .shift-card:hover {
+    background: #712E24;
+  }
+
+  .leave-badge {
+    background: #FDF3E0;
+    color: #7A5420;
+    border: 1px dashed #C98B3A;
+    padding: 5px 7px;
+    margin: 5px 0;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  .shift-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(255,255,255,0.3);
+    color: white;
+    border: none;
+    border-radius: 2px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    display: none;
+  }
+
+  .shift-card:hover .shift-remove {
+    display: block;
+  }
+
+  .shift-remove:hover {
+    background: rgba(255,0,0,0.7);
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .btn-primary {
+    padding: 10px 16px;
+    background: #5F7A52;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .btn-primary:hover {
+    background: #4D6542;
+  }
+
+  .status-message {
+    padding: 12px;
+    background: #EAF2E6;
+    color: #4D6542;
+    border-radius: 3px;
+    margin-bottom: 15px;
+    font-size: 13px;
+    display: none;
+  }
+
+  .status-message.show {
+    display: block;
+  }
+</style>
+
+<div style="padding: 24px;">
+  <div style="margin-bottom: 24px;">
+    <a href="{% url 'dashboard:shifts' %}" class="relay-btn" style="font-family:'IBM Plex Mono',monospace; font-size:14px; padding:7px 14px;">← Back</a>
+    <h2 class="page-title" style="margin-bottom:2px; display:inline-block; margin-left: 20px;">Weekly Planner</h2>
+    <span class="section-label" style="display:block; margin-top: 8px;">Drag employees to schedule shifts</span>
+  </div>
+
+  <!-- Location Selector -->
+  <div style="margin-bottom: 20px;">
+    <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E;">
+      Select Location:
+    </label>
+    <select id="location-select" onchange="if(this.value){window.location.search='?location='+encodeURIComponent(this.value);}" style="width:300px; font-family:'IBM Plex Sans',sans-serif; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; margin-top: 8px;">
+      <option value="">-- Select a location --</option>
+      {% for loc in locations %}
+        <option value="{{ loc.id }}" {% if selected_location.id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  {% if selected_location %}
+  <div id="status-message" class="status-message"></div>
+
+  <!-- Time-range picker modal (shown on drop) -->
+  <div id="time-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:#FBF9F4; border:1px solid #D6CBBA; border-radius:4px; padding:28px; width:340px;">
+      <h3 style="font-family:'Spectral',serif; font-size:20px; margin:0 0 4px;">Set shift hours</h3>
+      <p id="modal-context" style="font-size:13px; color:#666; margin:0 0 20px;"></p>
+      <div style="display:flex; gap:16px;">
+        <div style="flex:1;">
+          <label style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; color:#9A8D7E; display:block; margin-bottom:6px;">Start</label>
+          <input type="time" id="modal-start" value="08:00" step="1800" style="width:100%; padding:9px; border:1px solid #D6CBBA; border-radius:0; font-family:'IBM Plex Mono',monospace; font-size:15px;">
+        </div>
+        <div style="flex:1;">
+          <label style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; color:#9A8D7E; display:block; margin-bottom:6px;">End</label>
+          <input type="time" id="modal-end" value="17:00" step="1800" style="width:100%; padding:9px; border:1px solid #D6CBBA; border-radius:0; font-family:'IBM Plex Mono',monospace; font-size:15px;">
+        </div>
+      </div>
+      <p id="modal-error" style="color:#C1440E; font-size:12px; margin:10px 0 0; display:none;">End time must be after start time.</p>
+      <div style="display:flex; gap:10px; margin-top:24px;">
+        <button class="btn-primary" onclick="confirmShift()">Add Shift</button>
+        <button class="btn-nav" style="background:#999;" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="planner-container">
+    <!-- Left Sidebar: Available Employees -->
+    <div class="planner-sidebar">
+      <h3 style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; margin-bottom: 12px;">Available Staff</h3>
+      <ul class="employee-list" id="employee-list">
+        {% for emp in available_employees %}
+          <li class="employee-item" draggable="true" data-employee-id="{{ emp.id }}" data-employee-name="{{ emp.name }}">
+            {{ emp.name }}<br>
+            <span style="font-size: 11px; color: #666;">{{ emp.get_employee_type_display }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Right Main: Weekly Grid -->
+    <div class="planner-main">
+      <div class="week-header">
+        <div class="week-dates">
+          Week of <strong>{{ week_start|date:"M d" }}</strong> - <strong>{{ week_end|date:"M d, Y" }}</strong>
+        </div>
+        <div class="week-nav">
+          <button class="btn-nav" onclick="previousWeek()">← Previous Week</button>
+          <button class="btn-nav" onclick="nextWeek()">Next Week →</button>
+          <button class="btn-primary" onclick="copyWeek()" style="margin-left: 20px;">📋 Copy to Next Week</button>
+        </div>
+      </div>
+
+      <div class="grid-container" id="week-grid">
+        {% for day in days %}
+        <div class="day-column">
+          <div class="day-header">
+            <span>{{ day.day_name|slice:":3" }}</span>
+            <span class="day-date">{{ day.date|date:"M d" }}</span>
+          </div>
+          <div class="drop-zone" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" data-date="{{ day.date|date:'Y-m-d' }}">
+            {% for name in day.on_leave %}
+            <div class="leave-badge">🌴 {{ name|truncatewords:2 }} — off</div>
+            {% endfor %}
+            {% for shift in day.shifts %}
+            <div class="shift-card" data-shift-id="{{ shift.id }}">
+              <button class="shift-remove" onclick="deleteShift({{ shift.id }})">×</button>
+              <strong>{{ shift.employee.name|truncatewords:2 }}</strong><br>
+              {{ shift.start_time|date:"H:i" }} - {{ shift.end_time|date:"H:i" }}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {{ leave_ids_by_date|json_script:"leave-data" }}
+  <script>
+    const statusMsg = document.getElementById('status-message');
+    const leaveByDate = JSON.parse(document.getElementById('leave-data').textContent);
+
+    function showStatus(message, isSuccess = true) {
+      statusMsg.textContent = message;
+      statusMsg.className = 'status-message show';
+      statusMsg.style.background = isSuccess ? '#EAF2E6' : '#FCEEE9';
+      statusMsg.style.color = isSuccess ? '#4D6542' : '#C1440E';
+      setTimeout(() => statusMsg.className = 'status-message', 3000);
+    }
+
+    // Drag and drop handlers
+    let draggedEmployee = null;
+
+    document.querySelectorAll('.employee-item').forEach(item => {
+      item.addEventListener('dragstart', (e) => {
+        if (!item.classList.contains('on-leave')) {
+          draggedEmployee = {
+            id: item.dataset.employeeId,
+            name: item.dataset.employeeName
+          };
+          e.dataTransfer.effectAllowed = 'copy';
+        }
+      });
+    });
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      e.target.closest('.drop-zone').classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+      e.target.closest('.drop-zone').classList.remove('drag-over');
+    }
+
+    // Pending shift chosen by drop, awaiting time confirmation
+    let pendingShift = null;
+    const timeModal = document.getElementById('time-modal');
+
+    function handleDrop(e) {
+      e.preventDefault();
+      const dropZone = e.target.closest('.drop-zone');
+      dropZone.classList.remove('drag-over');
+
+      if (!draggedEmployee) return;
+
+      const dropDate = dropZone.dataset.date;
+      const offToday = leaveByDate[dropDate] || [];
+      if (offToday.includes(parseInt(draggedEmployee.id, 10))) {
+        showStatus(`${draggedEmployee.name} is on leave that day.`, false);
+        return;
+      }
+
+      pendingShift = {
+        id: draggedEmployee.id,
+        name: draggedEmployee.name,
+        date: dropDate
+      };
+      document.getElementById('modal-context').textContent = `${pendingShift.name} — ${pendingShift.date}`;
+      document.getElementById('modal-error').style.display = 'none';
+      timeModal.style.display = 'flex';
+    }
+
+    function closeModal() {
+      timeModal.style.display = 'none';
+      pendingShift = null;
+    }
+
+    function confirmShift() {
+      if (!pendingShift) return;
+      const start = document.getElementById('modal-start').value;
+      const end = document.getElementById('modal-end').value;
+      if (!start || !end || end <= start) {
+        document.getElementById('modal-error').style.display = 'block';
+        return;
+      }
+      addShift(pendingShift.id, pendingShift.name, pendingShift.date, start, end);
+      closeModal();
+    }
+
+    function addShift(employeeId, employeeName, date, startTime, endTime) {
+      fetch('{% url "dashboard:api_add_shift" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+          employee_id: employeeId,
+          date: date,
+          start_time: startTime,
+          end_time: endTime
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showStatus(`✓ Shift added for ${employeeName}`);
+          setTimeout(() => location.reload(), 800);
+        } else {
+          showStatus(data.error, false);
+        }
+      })
+      .catch(err => showStatus('Error: ' + err, false));
+    }
+
+    function deleteShift(shiftId) {
+      if (!confirm('Remove this shift?')) return;
+
+      fetch(`{% url "dashboard:api_delete_shift" 0 %}`.replace('0', shiftId), {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}'}
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showStatus(data.message);
+          setTimeout(() => location.reload(), 800);
+        } else {
+          showStatus(data.error, false);
+        }
+      });
+    }
+
+    function gotoWeek(offsetDays) {
+      const d = new Date('{{ week_start|date:"Y-m-d" }}');
+      d.setDate(d.getDate() + offsetDays);
+      window.location.search = '?location={{ selected_location.id }}&date=' + d.toISOString().split('T')[0];
+    }
+
+    function nextWeek() { gotoWeek(7); }
+    function previousWeek() { gotoWeek(-7); }
+
+    function copyWeek() {
+      if (!confirm('Copy all shifts to next week?')) return;
+
+      const nextWeekDate = new Date('{{ week_start|date:"Y-m-d" }}');
+      nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+
+      fetch('{% url "dashboard:api_copy_week" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+          location_id: {{ selected_location.id }},
+          from_date: '{{ week_start|date:"Y-m-d" }}',
+          to_date: nextWeekDate.toISOString().split('T')[0]
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showStatus(`✓ ${data.created} shifts copied to next week!`);
+          setTimeout(() => nextWeek(), 1000);
+        } else {
+          showStatus(data.error, false);
+        }
+      });
+    }
+  </script>
+  {% else %}
+    <div style="padding: 40px; text-align: center; color: #666;">
+      <p>Select a location to start scheduling shifts</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

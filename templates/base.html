@@ -863,8 +863,11 @@
       <a class="nav-link {% if 'leave' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'dashboard:leaves' %}">
         <i class="bi bi-calendar-check"></i>Leaves
       </a>
-      <a class="nav-link {% if 'shift' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'dashboard:shifts' %}">
+      <a class="nav-link {% if request.resolver_match.url_name == 'shifts' %}active{% endif %}" href="{% url 'dashboard:shifts' %}">
         <i class="bi bi-clock"></i>Shifts
+      </a>
+      <a class="nav-link {% if request.resolver_match.url_name == 'weekly_planner' %}active{% endif %}" href="{% url 'dashboard:weekly_planner' %}">
+        <i class="bi bi-calendar2-week"></i>Weekly Planner
       </a>
       <a class="nav-link {% if 'sms' in request.resolver_match.url_name and request.resolver_match.url_name != 'sms_simulator' %}active{% endif %}" href="{% url 'dashboard:sms_logs' %}">
         <i class="bi bi-chat-dots"></i>SMS Logs
