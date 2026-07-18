@@ -4,7 +4,7 @@ Session state management for menu-driven SMS interactions.
 Tracks user progress through leave request menu flow.
 """
 import logging
-from datetime import timedelta
+from datetime import timedelta, date
 from django.core.cache import cache
 from django.utils import timezone
 
@@ -47,11 +47,12 @@ def start_leave_menu(phone):
         "leave_type": None,
         "start_date": None,
         "end_date": None,
+        "is_range": False,
         "reason": None,
     }
     set_user_session(phone, session)
     send_menu_prompt(phone, step=1)
-    return "Menu started. Awaiting leave type selection."
+    return None  # Menu sends prompt
 
 
 def process_menu_response(phone, text, employee):
@@ -80,14 +81,14 @@ def process_menu_response(phone, text, employee):
             return error, None
 
         session["leave_type"] = leave_type
-        session["state"] = LeaveMenuState.AWAITING_DATES
+        session["state"] = LeaveMenuState.AWAITING_START_DATE
         set_user_session(phone, session)
         send_menu_prompt(phone, step=2)
         return None, None  # Prompt sent separately
 
-    # Step 2: Awaiting dates
-    elif state == LeaveMenuState.AWAITING_DATES:
-        start_date, end_date, error = handle_date_response(text)
+    # Step 2: Awaiting start date
+    elif state == LeaveMenuState.AWAITING_START_DATE:
+        start_date, _, error = handle_date_response(text)
         if error:
             if error.startswith("Leave request cancelled"):
                 clear_user_session(phone)
@@ -95,13 +96,55 @@ def process_menu_response(phone, text, employee):
             return error, None
 
         session["start_date"] = start_date.isoformat() if start_date else None
-        session["end_date"] = end_date.isoformat() if end_date else None
+        session["state"] = LeaveMenuState.AWAITING_DURATION
+        set_user_session(phone, session)
+
+        # Send duration prompt with context
+        send_menu_prompt(phone, step=3, context=session)
+        return None, None
+
+    # Step 3: Awaiting single or range
+    elif state == LeaveMenuState.AWAITING_DURATION:
+        response = text.strip().upper()
+
+        if response == "S":
+            # Single day
+            start_date = date.fromisoformat(session["start_date"])
+            session["end_date"] = start_date.isoformat()
+            session["is_range"] = False
+            session["state"] = LeaveMenuState.AWAITING_REASON
+            set_user_session(phone, session)
+            send_menu_prompt(phone, step=5)
+            return None, None
+
+        elif response == "R":
+            # Range - ask for end date
+            session["is_range"] = True
+            session["state"] = LeaveMenuState.AWAITING_END_DATE
+            set_user_session(phone, session)
+            send_menu_prompt(phone, step=4, context=session)
+            return None, None
+
+        else:
+            return "Please reply S (single day) or R (range)", None
+
+    # Step 4: Awaiting end date (if range)
+    elif state == LeaveMenuState.AWAITING_END_DATE:
+        _, end_date, error = handle_date_response(text)
+        if error:
+            return error, None
+
+        start_date = date.fromisoformat(session["start_date"])
+        if end_date < start_date:
+            return "End date cannot be before start date. Try again.", None
+
+        session["end_date"] = end_date.isoformat()
         session["state"] = LeaveMenuState.AWAITING_REASON
         set_user_session(phone, session)
-        send_menu_prompt(phone, step=3)
-        return None, None  # Prompt sent separately
+        send_menu_prompt(phone, step=5)
+        return None, None
 
-    # Step 3: Awaiting reason
+    # Step 5: Awaiting reason
     elif state == LeaveMenuState.AWAITING_REASON:
         reason, error = handle_reason_response(text)
         if error:
@@ -112,8 +155,6 @@ def process_menu_response(phone, text, employee):
         set_user_session(phone, session)
 
         # Build confirmation
-        from datetime import date
-
         start = date.fromisoformat(session["start_date"])
         end = date.fromisoformat(session["end_date"])
         confirmation = build_confirmation_message(
@@ -130,8 +171,6 @@ def process_menu_response(phone, text, employee):
 
         if response == "YES":
             # Submit leave request
-            from datetime import date
-
             from apps.leaves.models import Leave
             from apps.leaves.ratio import evaluate_leave
 
