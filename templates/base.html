@@ -872,10 +872,12 @@
       <a class="nav-link {% if 'sms' in request.resolver_match.url_name and request.resolver_match.url_name != 'sms_simulator' %}active{% endif %}" href="{% url 'dashboard:sms_logs' %}">
         <i class="bi bi-chat-dots"></i>SMS Logs
       </a>
+      {% if debug %}
       <hr class="sidebar-divider">
       <a class="nav-link nav-link-highlight {% if request.resolver_match.url_name == 'sms_simulator' %}active{% endif %}" href="{% url 'sms_simulator' %}">
         <i class="bi bi-phone"></i>SMS Simulator
       </a>
+      {% endif %}
     </nav>
     <div class="sidebar-footer">
       <span class="user-name">{{ user.get_full_name|default:user.username }}</span>

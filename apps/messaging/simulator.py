@@ -5,6 +5,8 @@ Access at /sms-simulator/
 """
 import json
 import logging
+from django.conf import settings
+from django.http import Http404
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -18,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 @require_http_methods(["GET", "POST"])
 def sms_simulator(request):
+    if not settings.DEBUG:
+        raise Http404
     logger.debug("Simulator request: method=%s", request.method)
     employees = Employee.objects.filter(is_active=True).select_related("location").order_by("employee_type", "name")
     result = None
