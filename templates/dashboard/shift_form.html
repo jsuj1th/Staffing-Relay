@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="d-flex align-items-center mb-4" style="gap:12px;">
-  <a href="{% url 'dashboard:shifts' %}" class="relay-btn" style="font-family:'IBM Plex Mono',monospace; font-size:14px; padding:7px 14px;">← Back</a>
+  <a href="{% url 'dashboard:shifts' %}?location={% if shift %}{{ shift.employee.location_id }}{% else %}{{ preselect_location_id }}{% endif %}&date={% if shift %}{{ shift.date|date:'Y-m-d' }}{% else %}{{ preselect_date }}{% endif %}" class="relay-btn" style="font-family:'IBM Plex Mono',monospace; font-size:14px; padding:7px 14px;">← Back</a>
   <div>
     <h2 class="page-title" style="margin-bottom:2px;">{{ action }} Shift</h2>
     <span class="section-label">Fill in the details below</span>
@@ -85,7 +85,7 @@
 
     <div style="display:flex; gap:10px;">
       <button type="submit" class="relay-btn relay-btn-primary">Save Shift</button>
-      <a href="{% url 'dashboard:shifts' %}" class="relay-btn">Cancel</a>
+      <a href="{% url 'dashboard:shifts' %}?location={% if shift %}{{ shift.employee.location_id }}{% else %}{{ preselect_location_id }}{% endif %}&date={% if shift %}{{ shift.date|date:'Y-m-d' }}{% else %}{{ preselect_date }}{% endif %}" class="relay-btn">Cancel</a>
     </div>
   </form>
 </div>

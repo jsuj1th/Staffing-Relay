@@ -692,7 +692,7 @@ def shift_edit(request, pk):
         except ValueError:
             messages.error(request, "Invalid date.")
             return render(request, "dashboard/shift_form.html", {
-                "shift": shift, "action": "Edit",
+                "shift": shift, "action": "Edit", "form": ShiftForm(request.POST),
                 "locations": Location.objects.all(),
             })
         shift.start_time = request.POST.get("start_time", shift.start_time)
@@ -709,8 +709,13 @@ def shift_edit(request, pk):
         messages.success(request, "Shift updated.")
         return redirect(f"/dashboard/shifts/?location={shift.employee.location_id}&date={shift.date}")
 
+    # Prefill time dropdowns with the shift's current times (ChoiceField wants "HH:MM").
+    form = ShiftForm(initial={
+        "start_time": shift.start_time.strftime("%H:%M"),
+        "end_time": shift.end_time.strftime("%H:%M"),
+    })
     return render(request, "dashboard/shift_form.html", {
-        "shift": shift, "action": "Edit",
+        "shift": shift, "action": "Edit", "form": form,
         "locations": Location.objects.all(),
     })
 

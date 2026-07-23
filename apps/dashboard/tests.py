@@ -955,3 +955,13 @@ class ShiftEditNotificationTests(TestCase):
             "date": str(self.shift.date), "start_time": "09:00", "end_time": "17:00",
         })
         self.assertEqual(self._updated_count(), 0)
+
+    def test_edit_page_renders_time_options_and_preserves_location(self):
+        """GET edit page: time dropdowns populated + selected, Back link keeps location."""
+        resp = self.client.get(f"/dashboard/shifts/{self.shift.id}/edit/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        # Dropdown has the shift's current start time selected (was empty before the fix)
+        self.assertIn('value="09:00" selected', html)
+        # Back/Cancel preserve the location context
+        self.assertIn(f"location={self.location.id}", html)
