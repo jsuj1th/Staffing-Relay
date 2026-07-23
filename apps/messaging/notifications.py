@@ -28,7 +28,7 @@ def queue_notification(
     message_body,
     related_object_id=None,
     send_immediately=False,
-    batch_window_minutes=60,
+    batch_window_minutes=10,
 ):
     """
     Queue an SMS notification for the employee.
@@ -140,37 +140,29 @@ def send_notification_batch(employee):
 
     combined_message = "\n".join(lines).strip()
 
-    # Send SMS
-    try:
-        if DEBUG:
-            logger.debug(f"Sending batch: {len(pending)} notifications to {employee.name}")
-        send_sms(employee.phone, combined_message)
-        if DEBUG:
-            logger.debug(f"Batch sent successfully: employee={employee.name}, count={len(pending)}")
-        logger.info(
-            "Notification batch sent: employee=%s count=%d",
-            employee.name,
-            len(pending),
+    # Send SMS. send_sms() swallows exceptions and returns False, so check it —
+    # otherwise a failed send gets logged/marked as sent and silently lost.
+    if not send_sms(employee.phone, combined_message):
+        logger.error(
+            "Notification batch NOT delivered: employee=%s phone=%s count=%d (left pending for retry)",
+            employee.name, employee.phone, len(pending),
         )
+        return
 
-        # Mark as sent
-        now = timezone.now()
-        for notif in pending:
-            notif.is_sent = True
-            notif.sent_at = now
-            notif.save()
+    logger.info("Notification batch sent: employee=%s count=%d", employee.name, len(pending))
 
-        # Log in SmsLog
-        SmsLog.objects.create(
-            from_phone=employee.phone,
-            employee=employee,
-            inbound_msg="[Batch notification]",
-            outbound_msg=combined_message,
-        )
+    now = timezone.now()
+    for notif in pending:
+        notif.is_sent = True
+        notif.sent_at = now
+        notif.save()
 
-    except Exception as e:
-        logger.error("Failed to send notification batch: %s", e)
-        raise
+    SmsLog.objects.create(
+        from_phone=employee.phone,
+        employee=employee,
+        inbound_msg="[Batch notification]",
+        outbound_msg=combined_message,
+    )
 
 
 def send_all_pending_notifications():
@@ -201,7 +193,10 @@ def send_all_pending_notifications():
 # Convenience functions for common notifications
 
 def notify_shift_assigned(shift, send_immediately=False):
-    """Notify employee of a new shift assignment."""
+    """Notify employee of a new shift assignment. Same-day shifts always send now."""
+    if shift.date == timezone.localdate():
+        send_immediately = True
+
     message = f"{shift.date.strftime('%a, %b %d')} | {shift.start_time} - {shift.end_time}"
 
     return queue_notification(

@@ -35,6 +35,9 @@ from .views import _process_command
 class NotificationQueueTests(TestCase):
     def setUp(self):
         """Set up test data."""
+        _p = patch("apps.messaging.notifications.send_sms", return_value=True)
+        self.addCleanup(_p.stop)
+        _p.start()
         self.location = Location.objects.create(
             name="Test Hospital",
             address="123 Main St",
@@ -495,6 +498,9 @@ class MenuUnrecognizedTextTests(TestCase):
 class MainMenuTests(TestCase):
     def setUp(self):
         """Set up test data for main menu tests."""
+        _p = patch("apps.messaging.notifications.send_sms", return_value=True)
+        self.addCleanup(_p.stop)
+        _p.start()
         self.location = Location.objects.create(
             name="Test Hospital",
             address="123 Main St",
@@ -788,6 +794,10 @@ class AdminLeaveManagementTests(TestCase):
     def setUp(self):
         """Set up test data for admin leave management."""
         from django.contrib.auth import get_user_model
+
+        _p = patch("apps.messaging.notifications.send_sms", return_value=True)
+        self.addCleanup(_p.stop)
+        _p.start()
 
         User = get_user_model()
 
