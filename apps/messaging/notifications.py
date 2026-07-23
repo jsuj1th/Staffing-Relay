@@ -117,6 +117,15 @@ def send_notification_batch(employee):
             lines.append(f"  ... and {len(shifts) - 3} more")
         lines.append("")
 
+    if NotificationQueue.NotificationType.SHIFT_CANCELLED in by_type:
+        shifts = by_type[NotificationQueue.NotificationType.SHIFT_CANCELLED]
+        lines.append(f"🚫 SHIFTS REMOVED ({len(shifts)}):")
+        for shift_notif in shifts[:3]:
+            lines.append(f"  • {shift_notif.message_body}")
+        if len(shifts) > 3:
+            lines.append(f"  ... and {len(shifts) - 3} more")
+        lines.append("")
+
     if NotificationQueue.NotificationType.LEAVE_APPROVED in by_type:
         leaves = by_type[NotificationQueue.NotificationType.LEAVE_APPROVED]
         lines.append(f"✅ LEAVE APPROVED ({len(leaves)}):")
@@ -202,6 +211,22 @@ def notify_shift_assigned(shift, send_immediately=False):
     return queue_notification(
         employee=shift.employee,
         notification_type=NotificationQueue.NotificationType.SHIFT_ASSIGNED,
+        message_body=message,
+        related_object_id=shift.id,
+        send_immediately=send_immediately,
+    )
+
+
+def notify_shift_cancelled(shift, send_immediately=False):
+    """Notify employee a shift was removed. Same-day removals always send now."""
+    if shift.date == timezone.localdate():
+        send_immediately = True
+
+    message = f"REMOVED: {shift.date.strftime('%a, %b %d')} | {shift.start_time} - {shift.end_time}"
+
+    return queue_notification(
+        employee=shift.employee,
+        notification_type=NotificationQueue.NotificationType.SHIFT_CANCELLED,
         message_body=message,
         related_object_id=shift.id,
         send_immediately=send_immediately,

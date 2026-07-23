@@ -33,6 +33,7 @@ class NotificationQueue(models.Model):
     """Queue for batched SMS notifications (shift assignments, leave updates, etc)."""
     class NotificationType(models.TextChoices):
         SHIFT_ASSIGNED = "SHIFT_ASSIGNED", "Shift Assigned"
+        SHIFT_CANCELLED = "SHIFT_CANCELLED", "Shift Cancelled"
         LEAVE_APPROVED = "LEAVE_APPROVED", "Leave Approved"
         LEAVE_REJECTED = "LEAVE_REJECTED", "Leave Rejected"
         LEAVE_CANCELLED = "LEAVE_CANCELLED", "Leave Cancelled"

@@ -548,6 +548,8 @@ def api_delete_shift_from_planner(request, shift_id):
     try:
         shift = get_object_or_404(Shift, pk=shift_id)
         emp_name = shift.employee.name
+        from apps.messaging.notifications import notify_shift_cancelled
+        notify_shift_cancelled(shift)  # before delete: needs shift data
         shift.delete()
         logger.info(f"Shift deleted via planner: {emp_name}")
         return JsonResponse({"success": True, "message": f"Shift removed for {emp_name}"})
@@ -714,6 +716,8 @@ def shift_delete(request, pk):
     location_id = shift.employee.location_id
     shift_date = shift.date
     employee_name = shift.employee.name
+    from apps.messaging.notifications import notify_shift_cancelled
+    notify_shift_cancelled(shift)  # before delete: needs shift data
     shift.delete()
     logger.info("Shift deleted: employee=%s date=%s", employee_name, shift_date)
     messages.success(request, f"Shift removed for {employee_name}.")
