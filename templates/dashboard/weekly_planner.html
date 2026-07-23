@@ -424,8 +424,8 @@
       .catch(err => showStatus('Error: ' + err, false));
     }
 
-    function deleteShift(shiftId) {
-      if (!confirm('Remove this shift?')) return;
+    async function deleteShift(shiftId) {
+      if (!await relayConfirm('Remove this shift?')) return;
 
       fetch(`{% url "dashboard:api_delete_shift" 0 %}`.replace('0', shiftId), {
         method: 'POST',
@@ -451,8 +451,8 @@
     function nextWeek() { gotoWeek(7); }
     function previousWeek() { gotoWeek(-7); }
 
-    function copyWeek() {
-      if (!confirm('Copy all shifts to next week?')) return;
+    async function copyWeek() {
+      if (!await relayConfirm('Copy all shifts to next week?')) return;
 
       const nextWeekDate = new Date('{{ week_start|date:"Y-m-d" }}');
       nextWeekDate.setDate(nextWeekDate.getDate() + 7);

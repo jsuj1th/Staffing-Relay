@@ -902,6 +902,71 @@
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- In-site confirm dialog (replaces native browser confirm()) -->
+<div id="relay-confirm" class="relay-confirm-overlay" hidden>
+  <div class="relay-confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="relay-confirm-msg">
+    <p id="relay-confirm-msg" class="relay-confirm-msg"></p>
+    <div class="relay-confirm-actions">
+      <button type="button" class="relay-btn" data-relay-confirm="cancel">Cancel</button>
+      <button type="button" class="relay-btn relay-btn-primary" data-relay-confirm="ok">Confirm</button>
+    </div>
+  </div>
+</div>
+<style>
+  .relay-confirm-overlay {
+    position: fixed; inset: 0; z-index: 1080;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(43, 37, 33, 0.45);
+  }
+  .relay-confirm-box {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    max-width: 420px; width: calc(100% - 2rem);
+    padding: var(--spacing-lg);
+    box-shadow: 0 8px 24px rgba(43, 37, 33, 0.2);
+  }
+  .relay-confirm-msg {
+    font-family: var(--font-serif); font-size: 17px;
+    color: var(--color-text-primary); margin: 0 0 var(--spacing-lg);
+  }
+  .relay-confirm-actions { display: flex; gap: var(--spacing-sm); justify-content: flex-end; }
+</style>
+<script>
+  // relayConfirm(message) -> Promise<boolean>. Also auto-wires [data-confirm] on forms.
+  window.relayConfirm = function (message) {
+    return new Promise(function (resolve) {
+      var overlay = document.getElementById('relay-confirm');
+      overlay.querySelector('#relay-confirm-msg').textContent = message;
+      overlay.hidden = false;
+      function cleanup(result) {
+        overlay.hidden = true;
+        overlay.removeEventListener('click', onClick);
+        document.removeEventListener('keydown', onKey);
+        resolve(result);
+      }
+      function onClick(e) {
+        var action = e.target.getAttribute('data-relay-confirm');
+        if (action === 'ok') cleanup(true);
+        else if (action === 'cancel' || e.target === overlay) cleanup(false);
+      }
+      function onKey(e) { if (e.key === 'Escape') cleanup(false); }
+      overlay.addEventListener('click', onClick);
+      document.addEventListener('keydown', onKey);
+      overlay.querySelector('[data-relay-confirm="ok"]').focus();
+    });
+  };
+  // Intercept submits on forms with data-confirm.
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    var msg = form.getAttribute('data-confirm');
+    if (!msg || form.dataset.relayConfirmed) return;
+    e.preventDefault();
+    window.relayConfirm(msg).then(function (ok) {
+      if (ok) { form.dataset.relayConfirmed = '1'; form.submit(); }
+    });
+  }, true);
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

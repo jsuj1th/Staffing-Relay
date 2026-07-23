@@ -168,7 +168,7 @@
         </a>
         {% if item.emp.is_active %}
         <form method="post" action="{% url 'dashboard:employee_toggle_active' item.emp.pk %}"
-              onsubmit="return confirm('Remove {{ item.emp.name|escapejs }}? They will be deactivated and drop out of ratio counts and shift assignment. You can restore them later.');">
+              data-confirm="Remove {{ item.emp.name|escapejs }}? They will be deactivated and drop out of ratio counts and shift assignment. You can restore them later.">
           {% csrf_token %}
           <button type="submit" class="relay-btn" style="font-size:12px; padding:5px 12px;">Remove</button>
         </form>
