@@ -1,4 +1,5 @@
 import logging
+import re
 from django.db import models
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,18 @@ class Employee(models.Model):
 
     class Meta:
         ordering = ["name"]
+
+    @staticmethod
+    def normalize_phone(raw):
+        """Coerce a phone to E.164 (+1XXXXXXXXXX). US-only. ponytail: no libphonenumber."""
+        digits = re.sub(r"\D", "", raw or "")
+        if len(digits) == 10:
+            digits = "1" + digits
+        return "+" + digits if digits else (raw or "")
+
+    def save(self, *args, **kwargs):
+        self.phone = self.normalize_phone(self.phone)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.name} ({self.get_employee_type_display()})"

@@ -144,7 +144,7 @@ def employee_create(request):
     locations = Location.objects.all()
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
-        phone = request.POST.get("phone", "").strip()
+        phone = Employee.normalize_phone(request.POST.get("phone", "").strip())
         emp_type = request.POST.get("employee_type", "")
         location_id = request.POST.get("location_id") or None
         shared_location_ids = request.POST.getlist("shared_location_ids")
@@ -193,7 +193,7 @@ def employee_edit(request, pk):
 
     if request.method == "POST":
         emp.name = request.POST.get("name", emp.name).strip()
-        phone = request.POST.get("phone", emp.phone).strip()
+        phone = Employee.normalize_phone(request.POST.get("phone", emp.phone).strip())
         emp_type = request.POST.get("employee_type", emp.employee_type)
         location_id = request.POST.get("location_id") or None
         shared_location_ids = request.POST.getlist("shared_location_ids")
@@ -525,9 +525,9 @@ def api_add_shift_to_planner(request):
 
         logger.info(f"Shift created via planner: {employee.name} - {shift_date}")
 
-        # Queue batched SMS notification (same as shift_create form)
+        # Single manual assignment: send SMS now (bulk copy-week stays batched)
         from apps.messaging.notifications import notify_shift_assigned
-        notify_shift_assigned(shift, send_immediately=False)
+        notify_shift_assigned(shift, send_immediately=True)
 
         return JsonResponse({
             "success": True,
@@ -653,9 +653,9 @@ def shift_create(request):
 
             logger.info("Shift created: employee=%s date=%s repeat_weeks=%d", shift.employee.name, shift.date, repeat_weeks)
 
-            # Queue SMS notifications for shift assignments
+            # Single shift: SMS now. Repeated shifts: batch into one digest.
             from apps.messaging.notifications import notify_shift_assigned
-            notify_shift_assigned(shift, send_immediately=False)
+            notify_shift_assigned(shift, send_immediately=not repeat_weeks)
 
             if repeat_weeks:
                 for week in range(1, repeat_weeks + 1):
@@ -665,7 +665,8 @@ def shift_create(request):
                     )
                     notify_shift_assigned(repeated_shift, send_immediately=False)
 
-            messages.success(request, f"Shift added for {shift.employee.name}" + (f" (repeated {repeat_weeks} weeks)" if repeat_weeks else "") + ". SMS notification queued.")
+            sms_note = " SMS sent." if not repeat_weeks else " SMS notifications queued."
+            messages.success(request, f"Shift added for {shift.employee.name}" + (f" (repeated {repeat_weeks} weeks)" if repeat_weeks else "") + "." + sms_note)
             return redirect(f"/dashboard/shifts/?location={shift.employee.location_id}&date={shift.date}")
     else:
         form = ShiftForm()
