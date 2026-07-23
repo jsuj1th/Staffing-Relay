@@ -686,6 +686,7 @@ def shift_edit(request, pk):
     shift = get_object_or_404(Shift, pk=pk)
 
     if request.method == "POST":
+        before = (shift.date, shift.start_time, shift.end_time)
         try:
             shift.date = date.fromisoformat(request.POST.get("date", str(shift.date)))
         except ValueError:
@@ -697,7 +698,14 @@ def shift_edit(request, pk):
         shift.start_time = request.POST.get("start_time", shift.start_time)
         shift.end_time = request.POST.get("end_time", shift.end_time)
         shift.save()
+        shift.refresh_from_db()  # POST gives strings; reload so times compare as time objects
         logger.info("Shift updated: id=%d employee=%s", shift.id, shift.employee.name)
+
+        # Notify only if date/time actually changed (skip no-op saves)
+        if before != (shift.date, shift.start_time, shift.end_time):
+            from apps.messaging.notifications import notify_shift_updated
+            notify_shift_updated(shift)
+
         messages.success(request, "Shift updated.")
         return redirect(f"/dashboard/shifts/?location={shift.employee.location_id}&date={shift.date}")
 

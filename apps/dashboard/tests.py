@@ -914,3 +914,44 @@ class ShiftTimeBlockValidationTests(TestCase):
         self.assertEqual(shift.date, self.test_date)
         self.assertEqual(shift.start_time, time(10, 0))
         self.assertEqual(shift.end_time, time(14, 30))
+
+
+class ShiftEditNotificationTests(TestCase):
+    """Editing a shift's date/time should SMS-notify the employee; no-op saves should not."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='admin', password='admin123')
+        self.location = Location.objects.create(
+            name="Test Hospital", address="123 Main St", city="Testville", state="TX",
+        )
+        self.employee = Employee.objects.create(
+            name="Edit Test", phone="+15550000099",
+            employee_type=Employee.Type.PROVIDER, location=self.location,
+        )
+        # Future date so the notification just queues (no immediate send / Telnyx call).
+        self.shift = Shift.objects.create(
+            employee=self.employee,
+            date=timezone.localdate() + timedelta(days=10),
+            start_time=time(9, 0), end_time=time(17, 0),
+        )
+        self.client.login(username='admin', password='admin123')
+
+    def _updated_count(self):
+        from apps.messaging.models import NotificationQueue
+        return NotificationQueue.objects.filter(
+            related_object_id=self.shift.id,
+            notification_type=NotificationQueue.NotificationType.SHIFT_UPDATED,
+        ).count()
+
+    def test_time_change_queues_update_notification(self):
+        self.client.post(f"/dashboard/shifts/{self.shift.id}/edit/", {
+            "date": str(self.shift.date), "start_time": "10:00", "end_time": "17:00",
+        })
+        self.assertEqual(self._updated_count(), 1)
+
+    def test_no_op_edit_does_not_notify(self):
+        self.client.post(f"/dashboard/shifts/{self.shift.id}/edit/", {
+            "date": str(self.shift.date), "start_time": "09:00", "end_time": "17:00",
+        })
+        self.assertEqual(self._updated_count(), 0)

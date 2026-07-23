@@ -34,6 +34,7 @@ class NotificationQueue(models.Model):
     class NotificationType(models.TextChoices):
         SHIFT_ASSIGNED = "SHIFT_ASSIGNED", "Shift Assigned"
         SHIFT_CANCELLED = "SHIFT_CANCELLED", "Shift Cancelled"
+        SHIFT_UPDATED = "SHIFT_UPDATED", "Shift Updated"
         LEAVE_APPROVED = "LEAVE_APPROVED", "Leave Approved"
         LEAVE_REJECTED = "LEAVE_REJECTED", "Leave Rejected"
         LEAVE_CANCELLED = "LEAVE_CANCELLED", "Leave Cancelled"
