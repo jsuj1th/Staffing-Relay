@@ -66,7 +66,7 @@
         <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
         <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
       </div>
-      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location_display }}</div>
       <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
         {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
       </div>
@@ -94,7 +94,7 @@
         <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
         <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
       </div>
-      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location_display }}</div>
       <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
         {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
       </div>
@@ -118,7 +118,7 @@
         <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
         <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
       </div>
-      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location_display }}</div>
       <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
         {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
       </div>
@@ -150,7 +150,7 @@
         <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
         <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
       </div>
-      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location_display }}</div>
       <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
         {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
       </div>
@@ -175,7 +175,7 @@
         <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:#2B2521;line-height:1.2;">{{ leave.employee.name }}</div>
         <div style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#8A8073;">{{ leave.employee.get_employee_type_display }}</div>
       </div>
-      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location|default:"Shared" }}</div>
+      <div class="col-md-2" style="font-family:'IBM Plex Sans',sans-serif;font-size:16px;color:#2B2521;">{{ leave.employee.location_display }}</div>
       <div class="col-md-2" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#2B2521;">
         {{ leave.start_date }}{% if leave.start_date != leave.end_date %}<br>→ {{ leave.end_date }}{% endif %}
       </div>

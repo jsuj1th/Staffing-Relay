@@ -28,7 +28,7 @@
           {% for type_name, type_employees in employees_by_type %}
             <optgroup label="{{ type_name }}">
               {% for emp in type_employees %}
-                <option value="{{ emp.id }}">{{ emp.name }} — {{ emp.location|default:"Shared" }}</option>
+                <option value="{{ emp.id }}">{{ emp.name }} — {{ emp.location_display }}</option>
               {% endfor %}
             </optgroup>
           {% endfor %}

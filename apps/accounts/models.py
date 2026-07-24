@@ -52,3 +52,12 @@ class Employee(models.Model):
     @property
     def is_shared(self):
         return self.employee_type in (self.Type.FRONT_DESK, self.Type.MANAGEMENT)
+
+    @property
+    def location_display(self):
+        """Location name(s) for display. Direct FK for providers/MAs; the linked
+        EmployeeLocation names for shared staff; "Shared" only if none assigned."""
+        if self.location:
+            return self.location.name
+        names = [el.location.name for el in self.employee_locations.all()]
+        return ", ".join(names) if names else "Shared"

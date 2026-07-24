@@ -91,7 +91,9 @@ def overview(request):
 
 @login_required
 def employee_list(request):
-    qs = Employee.objects.select_related("location").all()
+    qs = Employee.objects.select_related("location").prefetch_related(
+        "employee_locations__location"
+    ).all()
     type_filter = request.GET.get("type", "")
     location_filter = request.GET.get("location", "")
     if type_filter:
@@ -255,7 +257,9 @@ def employee_toggle_active(request, pk):
 
 @login_required
 def leave_list(request):
-    qs = Leave.objects.select_related("employee", "employee__location")
+    qs = Leave.objects.select_related("employee", "employee__location").prefetch_related(
+        "employee__employee_locations__location"
+    )
     status_filter = request.GET.get("status", "")
     location_filter = request.GET.get("location", "")
     period_filter = request.GET.get("period", "")

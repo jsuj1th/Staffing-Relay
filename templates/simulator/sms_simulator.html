@@ -14,7 +14,7 @@
         <select id="emp-picker" onchange="fillPhone()" style="width:100%;font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#2B2521;background:#FBF9F4;border:1px solid #D6CBBA;padding:10px 32px 10px 12px;border-radius:0;cursor:pointer;-webkit-appearance:none;appearance:none;">
           <option value="">— pick an employee —</option>
           {% for emp in employees %}
-          <option value="{{ emp.phone }}" data-type="{{ emp.employee_type }}" data-loc="{{ emp.location|default:'Shared' }}">
+          <option value="{{ emp.phone }}" data-type="{{ emp.employee_type }}" data-loc="{{ emp.location_display }}">
             {{ emp.name }} · {{ emp.get_employee_type_display }} · {{ emp.location|default:"Shared" }}
           </option>
           {% endfor %}

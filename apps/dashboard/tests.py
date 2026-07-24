@@ -1023,3 +1023,34 @@ class LeaveLocationFilterTests(TestCase):
         resp = self.client.get(f"/dashboard/leaves/?location={self.loc.id}")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(self.leave, list(resp.context["leaves"]))
+
+
+class LocationDisplayTests(TestCase):
+    """location_display shows the real location(s), not the literal 'Shared'."""
+
+    def setUp(self):
+        from apps.locations.models import EmployeeLocation
+        self.EmployeeLocation = EmployeeLocation
+        self.loc = Location.objects.create(name="Clinic C", address="3 St", city="Town", state="TX")
+
+    def test_direct_location_employee(self):
+        emp = Employee.objects.create(
+            name="Provider P", phone="+15550000201",
+            employee_type=Employee.Type.PROVIDER, location=self.loc,
+        )
+        self.assertEqual(emp.location_display, "Clinic C")
+
+    def test_shared_with_one_location_shows_that_location(self):
+        emp = Employee.objects.create(
+            name="Lizbeth Gomez", phone="+15550000202",
+            employee_type=Employee.Type.FRONT_DESK, location=None,
+        )
+        self.EmployeeLocation.objects.create(employee=emp, location=self.loc, is_primary=True)
+        self.assertEqual(emp.location_display, "Clinic C")
+
+    def test_shared_with_no_location_falls_back_to_shared(self):
+        emp = Employee.objects.create(
+            name="No Loc", phone="+15550000203",
+            employee_type=Employee.Type.MANAGEMENT, location=None,
+        )
+        self.assertEqual(emp.location_display, "Shared")
