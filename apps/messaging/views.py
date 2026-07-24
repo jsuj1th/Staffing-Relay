@@ -24,26 +24,18 @@ def telnyx_webhook(request):
     sig = request.headers.get("telnyx-signature-ed25519", "")
     timestamp = request.headers.get("telnyx-timestamp", "")
 
-    # Verify signature when public key is configured
+    # Verify Telnyx's ed25519 signature when a public key is configured.
+    # (The telnyx SDK's own webhook helpers changed across major versions and
+    # don't match Telnyx's messaging ed25519 scheme, so verify it directly.)
     if settings.TELNYX_PUBLIC_KEY:
-        try:
-            import telnyx
-            telnyx.api_key = settings.TELNYX_API_KEY
-            event = telnyx.webhooks.construct_event(
-                payload.decode("utf-8"),
-                sig,
-                timestamp,
-                settings.TELNYX_PUBLIC_KEY,
-            )
-        except Exception as exc:
-            logger.warning("Telnyx webhook signature verification failed: %s", exc)
+        if not _verify_telnyx_signature(payload, sig, timestamp, settings.TELNYX_PUBLIC_KEY):
+            logger.warning("Telnyx webhook signature verification failed")
             return HttpResponse("Forbidden", status=403)
-    else:
-        # Dev mode: no signature check
-        try:
-            event = json.loads(payload)
-        except json.JSONDecodeError:
-            return HttpResponse("Bad Request", status=400)
+
+    try:
+        event = json.loads(payload)
+    except json.JSONDecodeError:
+        return HttpResponse("Bad Request", status=400)
 
     event_type = _get_event_type(event)
 
@@ -52,6 +44,21 @@ def telnyx_webhook(request):
 
     _handle_inbound_sms(event)
     return JsonResponse({"status": "ok"})
+
+
+def _verify_telnyx_signature(payload: bytes, sig_b64: str, timestamp: str, public_key_b64: str) -> bool:
+    """Verify Telnyx's ed25519 webhook signature. Signed payload is `{timestamp}|{raw_body}`."""
+    import base64
+    from nacl.signing import VerifyKey
+    from nacl.exceptions import BadSignatureError
+    try:
+        verify_key = VerifyKey(base64.b64decode(public_key_b64))
+        signed = timestamp.encode("utf-8") + b"|" + payload
+        verify_key.verify(signed, base64.b64decode(sig_b64))
+        return True
+    except (BadSignatureError, ValueError, TypeError) as exc:
+        logger.warning("Signature check error: %s", exc)
+        return False
 
 
 def _get_event_type(event):
