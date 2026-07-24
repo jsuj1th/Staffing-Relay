@@ -992,3 +992,34 @@ class EmployeeLocationFilterTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         names = [row["emp"].name for row in resp.context["employees"]]
         self.assertIn("Lizbeth Gomez", names)
+
+
+class LeaveLocationFilterTests(TestCase):
+    """Leaves for shared employees (linked via EmployeeLocation) must appear
+    when filtering the leave list by that location."""
+
+    def setUp(self):
+        from apps.locations.models import EmployeeLocation
+        self.client = Client()
+        User.objects.create_user(username='admin', password='admin123')
+        self.client.login(username='admin', password='admin123')
+        self.loc = Location.objects.create(
+            name="Clinic B", address="2 St", city="Town", state="TX",
+        )
+        self.shared_emp = Employee.objects.create(
+            name="Lizbeth Gomez", phone="+15550000124",
+            employee_type=Employee.Type.FRONT_DESK, location=None,
+        )
+        EmployeeLocation.objects.create(
+            employee=self.shared_emp, location=self.loc, is_primary=True,
+        )
+        today = timezone.localdate()
+        self.leave = Leave.objects.create(
+            employee=self.shared_emp, start_date=today, end_date=today,
+            status=Leave.Status.APPROVED,
+        )
+
+    def test_shared_employee_leave_shows_in_location_filter(self):
+        resp = self.client.get(f"/dashboard/leaves/?location={self.loc.id}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(self.leave, list(resp.context["leaves"]))

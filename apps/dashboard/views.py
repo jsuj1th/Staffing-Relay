@@ -263,7 +263,11 @@ def leave_list(request):
     if status_filter:
         qs = qs.filter(status=status_filter)
     if location_filter:
-        qs = qs.filter(employee__location_id=location_filter)
+        # Include shared employees linked via EmployeeLocation, not just direct FK.
+        qs = qs.filter(
+            Q(employee__location_id=location_filter)
+            | Q(employee__employee_locations__location_id=location_filter)
+        ).distinct()
 
     today = timezone.localdate()
     if period_filter == "week":
