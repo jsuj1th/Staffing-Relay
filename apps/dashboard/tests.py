@@ -965,3 +965,30 @@ class ShiftEditNotificationTests(TestCase):
         self.assertIn('value="09:00" selected', html)
         # Back/Cancel preserve the location context
         self.assertIn(f"location={self.location.id}", html)
+
+
+class EmployeeLocationFilterTests(TestCase):
+    """Shared (FRONT_DESK/MANAGEMENT) employees are linked via EmployeeLocation,
+    not the direct location FK — they must still appear in the location filter."""
+
+    def setUp(self):
+        from apps.locations.models import EmployeeLocation
+        self.client = Client()
+        User.objects.create_user(username='admin', password='admin123')
+        self.client.login(username='admin', password='admin123')
+        self.loc = Location.objects.create(
+            name="Clinic A", address="1 St", city="Town", state="TX",
+        )
+        self.shared_emp = Employee.objects.create(
+            name="Lizbeth Gomez", phone="+15550000123",
+            employee_type=Employee.Type.FRONT_DESK, location=None,
+        )
+        EmployeeLocation.objects.create(
+            employee=self.shared_emp, location=self.loc, is_primary=True,
+        )
+
+    def test_shared_employee_shows_in_location_filter(self):
+        resp = self.client.get(f"/dashboard/employees/?location={self.loc.id}")
+        self.assertEqual(resp.status_code, 200)
+        names = [row["emp"].name for row in resp.context["employees"]]
+        self.assertIn("Lizbeth Gomez", names)

@@ -97,7 +97,11 @@ def employee_list(request):
     if type_filter:
         qs = qs.filter(employee_type=type_filter)
     if location_filter:
-        qs = qs.filter(location_id=location_filter)
+        # Match direct-location employees AND shared ones linked via EmployeeLocation.
+        qs = qs.filter(
+            Q(location_id=location_filter)
+            | Q(employee_locations__location_id=location_filter)
+        ).distinct()
 
     today = timezone.localtime()
     week_ago = today - timedelta(days=7)
