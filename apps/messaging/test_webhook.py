@@ -3,6 +3,7 @@ import base64
 import json
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.test import TestCase, Client, override_settings
 from nacl.signing import SigningKey
 
@@ -39,6 +40,7 @@ class SignatureUnitTests(TestCase):
 @override_settings(TELNYX_PUBLIC_KEY=_PUBLIC_KEY_B64)
 class WebhookEndpointTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = Client()
         loc = Location.objects.create(name="L", address="a", city="c", state="TX")
         Employee.objects.create(
@@ -48,7 +50,7 @@ class WebhookEndpointTests(TestCase):
         self.body = json.dumps({
             "data": {
                 "event_type": "message.received",
-                "payload": {"from": {"phone_number": "+15550009999"}, "text": "HI"},
+                "payload": {"id": "msg-abc-123", "from": {"phone_number": "+15550009999"}, "text": "HI"},
             }
         }).encode()
 
@@ -66,3 +68,10 @@ class WebhookEndpointTests(TestCase):
     def test_invalid_signature_rejected(self):
         resp = self._post("AAAA")
         self.assertEqual(resp.status_code, 403)
+
+    @patch("apps.messaging.views._process_command", return_value=(None, None))
+    def test_duplicate_message_id_processed_once(self, mock_proc):
+        sig = _sign(self.body, "1700000000")
+        self._post(sig)
+        self._post(sig)  # Telnyx retry: same message id
+        self.assertEqual(mock_proc.call_count, 1)

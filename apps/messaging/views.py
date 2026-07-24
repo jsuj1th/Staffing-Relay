@@ -4,6 +4,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 
 from apps.accounts.models import Employee
@@ -79,8 +80,17 @@ def _handle_inbound_sms(event):
 
         from_number = msg_payload.get("from", {}).get("phone_number") if isinstance(msg_payload, dict) else msg_payload.from_.phone_number
         text = msg_payload.get("text", "").strip() if isinstance(msg_payload, dict) else msg_payload.text.strip()
+        msg_id = msg_payload.get("id") if isinstance(msg_payload, dict) else getattr(msg_payload, "id", None)
     except (KeyError, AttributeError, TypeError) as exc:
         logger.error("Could not parse inbound SMS payload: %s", exc)
+        return
+
+    # Idempotency: Telnyx retries a webhook when it doesn't get a fast 2xx (our
+    # handler sends SMS synchronously first). Without this, a retried delivery
+    # is processed twice and shifts the menu state under the user. cache.add is
+    # atomic, so only the first delivery of a given message id proceeds.
+    if msg_id and not cache.add(f"sms_seen:{msg_id}", 1, timeout=3600):
+        logger.info("Duplicate inbound SMS ignored: id=%s", msg_id)
         return
 
     if DEBUG:
