@@ -286,9 +286,9 @@ def _handle_cancel(employee, cancel_date):
             leave.save()
             return f"Your leave from {leave.start_date} to {leave.end_date} has been cancelled."
         # Multiple — ask for date
-        lines = ["You have multiple upcoming leaves. Reply CANCEL with the start date:"]
+        lines = ["You have multiple upcoming leaves. Reply DROP with the start date:"]
         for lv in upcoming:
-            lines.append(f"  CANCEL {lv.start_date}")
+            lines.append(f"  DROP {lv.start_date}")
         return "\n".join(lines)
 
     # Cancel by start date

@@ -4,7 +4,7 @@ SMS command parser.
 Supported commands (case-insensitive):
   LEAVE YYYY-MM-DD [YYYY-MM-DD] [optional reason]
   STATUS
-  CANCEL [YYYY-MM-DD]
+  DROP [YYYY-MM-DD]
   HELP
 
 You can also just text naturally, e.g. 'can I take Aug 1 off?'
@@ -43,7 +43,7 @@ HELP_TEXT = (
     "Commands:\n"
     "  LEAVE YYYY-MM-DD [end-date] [reason]\n"
     "  STATUS — view your upcoming leaves\n"
-    "  CANCEL [YYYY-MM-DD] — cancel a leave by start date\n"
+    "  DROP [YYYY-MM-DD] — cancel a leave by start date\n"
     "  HELP — show this message\n"
     "You can also just text naturally, e.g. 'can I take Aug 1 off?'"
 )
@@ -58,8 +58,10 @@ _STATUS_KEYWORDS = re.compile(
     r"\b(status|my leaves|upcoming|schedule|what do i have)\b",
     re.IGNORECASE,
 )
+# NB: "cancel"/"stop"/"end" are carrier-reserved opt-out keywords (texting them
+# unsubscribes the number), so the cancel-a-leave command uses DROP instead.
 _CANCEL_KEYWORDS = re.compile(
-    r"\b(cancel|cancel my|remove my leave|taking back)\b",
+    r"\b(drop|drop my|remove my leave|taking back)\b",
     re.IGNORECASE,
 )
 _HELP_KEYWORDS = re.compile(
@@ -103,7 +105,8 @@ def parse_sms(text: str) -> ParsedCommand:
     if normalized.startswith("status"):
         return ParsedCommand(command="status", raw=raw)
 
-    if normalized.startswith("cancel"):
+    # "drop" (not "cancel" — carrier opt-out keyword) triggers leave cancellation.
+    if normalized.startswith("drop"):
         dates = DATE_PATTERN.findall(raw)
         cancel_date = _parse_date(dates[0]) if dates else None
         return ParsedCommand(command="cancel", cancel_date=cancel_date, raw=raw)

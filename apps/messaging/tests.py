@@ -3,6 +3,7 @@ Tests for SMS parser and webhook handler.
 """
 import json
 from datetime import date, timedelta
+from django.core.cache import cache
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 
@@ -49,12 +50,12 @@ class SmsParserTests(TestCase):
         self.assertEqual(cmd.command, "help")
 
     def test_cancel_with_date(self):
-        cmd = parse_sms("CANCEL 2025-08-01")
+        cmd = parse_sms("DROP 2025-08-01")
         self.assertEqual(cmd.command, "cancel")
         self.assertEqual(cmd.cancel_date, date(2025, 8, 1))
 
     def test_cancel_without_date(self):
-        cmd = parse_sms("CANCEL")
+        cmd = parse_sms("DROP")
         self.assertEqual(cmd.command, "cancel")
         self.assertIsNone(cmd.cancel_date)
 
@@ -72,6 +73,7 @@ class SmsParserTests(TestCase):
 @override_settings(TELNYX_PUBLIC_KEY="")
 class WebhookTests(TestCase):
     def setUp(self):
+        cache.clear()  # menu sessions live in the cache; isolate from other tests
         self.client = Client()
         self.location = Location.objects.create(
             name="Test Hosp", address="1 St", city="Chicago", state="IL"
@@ -138,7 +140,7 @@ class WebhookTests(TestCase):
         self.assertIn("no upcoming", log.outbound_msg.lower())
 
     def test_cancel_no_leaves(self):
-        resp = self._post_sms(self.employee.phone, "CANCEL")
+        resp = self._post_sms(self.employee.phone, "DROP")
         self.assertEqual(resp.status_code, 200)
         log = SmsLog.objects.filter(employee=self.employee).first()
         self.assertIn("no upcoming", log.outbound_msg.lower())

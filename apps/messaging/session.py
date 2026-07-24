@@ -93,8 +93,9 @@ def process_menu_response(phone, text, employee):
     if DEBUG:
         logger.debug(f"Menu transition incoming: phone={phone}, current_state={state}, user_input={text}")
 
-    # Handle CANCEL at any point (except main menu, where it's an invalid option)
-    if text.strip().upper() == "CANCEL" and state != LeaveMenuState.AWAITING_MAIN_CHOICE:
+    # Handle EXIT at any point (except main menu). NB: "CANCEL" is a carrier
+    # opt-out keyword — it never reaches us — so the abort word is EXIT.
+    if text.strip().upper() == "EXIT" and state != LeaveMenuState.AWAITING_MAIN_CHOICE:
         clear_user_session(phone)
         return "Leave request cancelled.", None
 
@@ -149,9 +150,9 @@ def process_menu_response(phone, text, employee):
 
             # Multiple leaves - ask which one
             clear_user_session(phone)
-            lines = ["You have multiple upcoming leaves. Reply CANCEL with the start date:"]
+            lines = ["You have multiple upcoming leaves. Reply DROP with the start date:"]
             for lv in upcoming:
-                lines.append(f"  CANCEL {lv.start_date}")
+                lines.append(f"  DROP {lv.start_date}")
             return "\n".join(lines), None
 
         elif response == "4":
@@ -163,7 +164,7 @@ def process_menu_response(phone, text, employee):
                 "MENU = Main menu\n"
                 "LEAVE = Request leave\n"
                 "STATUS = Check leave status\n"
-                "CANCEL = Cancel leave\n"
+                "DROP = Cancel a leave\n"
                 "HELP = This message\n\n"
                 "Reply MENU to start."
             )

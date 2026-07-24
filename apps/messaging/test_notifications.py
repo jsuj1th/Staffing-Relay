@@ -359,7 +359,7 @@ class MenuSessionTests(TestCase):
         start_leave_menu(self.phone)
 
         # Cancel after start date prompt
-        reply, _ = process_menu_response(self.phone, "CANCEL", self.employee)
+        reply, _ = process_menu_response(self.phone, "EXIT", self.employee)
 
         self.assertIn("cancelled", reply.lower())
         self.assertFalse(is_in_menu_flow(self.phone))

@@ -78,7 +78,7 @@ def send_menu_prompt(phone, step=1, context=None):
             "Examples:\n"
             "0725 = July 25, 2026\n"
             "0105 = January 5, 2027\n\n"
-            "Or reply CANCEL to abort"
+            "Or reply EXIT to abort"
         )
     elif step == 3:
         if context and "start_date" in context:
@@ -231,7 +231,7 @@ def handle_date_response(response_text):
     """
     response = response_text.strip().upper()
 
-    if response == "CANCEL":
+    if response == "EXIT":
         return None, None, "Leave request cancelled."
 
     parsed_date, _ = parse_date_input(response_text)
