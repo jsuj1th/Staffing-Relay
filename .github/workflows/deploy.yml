@@ -84,7 +84,7 @@ jobs:
           echo "Deploying to $INSTANCE_ID"
           CMD_ID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --parameters 'commands=["bash /opt/relay/deploy.sh"]' \
+            --parameters 'commands=["bash /opt/relay/deploy.sh","cd /opt/relay && docker compose run --rm web python manage.py createcachetable"]' \
             --query Command.CommandId --output text)
           aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" || true
           echo "----- deploy output -----"

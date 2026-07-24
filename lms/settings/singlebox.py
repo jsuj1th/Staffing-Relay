@@ -12,6 +12,17 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 # SMS_DEBUG forces immediate (unbatched) sends; keep off in prod.
 SMS_DEBUG = os.getenv("SMS_DEBUG", "false").lower() == "true"
 
+# The SMS menu flow keeps per-user session state in the cache across requests.
+# Gunicorn runs 4 workers, so the default per-process LocMemCache loses state
+# between messages. No Redis on this box → use the DB (RDS), shared by all
+# workers. Requires `manage.py createcachetable` (run on deploy).
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "relay_cache",
+    }
+}
+
 # WhiteNoise serves static straight from the app — no S3/CDN on a single box.
 MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 STORAGES = {
