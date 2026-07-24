@@ -1054,3 +1054,36 @@ class LocationDisplayTests(TestCase):
             employee_type=Employee.Type.MANAGEMENT, location=None,
         )
         self.assertEqual(emp.location_display, "Shared")
+
+
+class SmsLogConversationTests(TestCase):
+    """SMS logs group into per-number conversations; thread view shows one number."""
+
+    def setUp(self):
+        from apps.messaging.models import SmsLog
+        self.SmsLog = SmsLog
+        self.client = Client()
+        User.objects.create_user(username='admin', password='admin123')
+        self.client.login(username='admin', password='admin123')
+        loc = Location.objects.create(name="L", address="a", city="c", state="TX")
+        self.emp = Employee.objects.create(
+            name="Alice", phone="+15550001111",
+            employee_type=Employee.Type.PROVIDER, location=loc,
+        )
+        SmsLog.objects.create(from_phone="+15550001111", employee=self.emp, inbound_msg="HI", outbound_msg="menu")
+        SmsLog.objects.create(from_phone="+15550001111", employee=self.emp, inbound_msg="0725", outbound_msg="date?")
+        SmsLog.objects.create(from_phone="+15559998888", employee=None, inbound_msg="who?", outbound_msg="not registered")
+
+    def test_list_groups_by_phone(self):
+        resp = self.client.get("/dashboard/sms/")
+        self.assertEqual(resp.status_code, 200)
+        phones = {c["phone"] for c in resp.context["conversations"]}
+        self.assertEqual(phones, {"+15550001111", "+15559998888"})
+        alice = next(c for c in resp.context["conversations"] if c["phone"] == "+15550001111")
+        self.assertEqual(alice["count"], 2)
+
+    def test_thread_shows_only_that_number(self):
+        resp = self.client.get("/dashboard/sms/", {"phone": "+15550001111"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context["logs"]), 2)
+        self.assertEqual(resp.context["employee"], self.emp)

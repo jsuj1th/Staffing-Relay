@@ -332,8 +332,43 @@ def leave_decision(request, pk):
 
 @login_required
 def sms_log_list(request):
-    logs = SmsLog.objects.select_related("employee", "leave").order_by("-created_at")[:300]
-    return render(request, "dashboard/sms_logs.html", {"logs": logs})
+    phone = request.GET.get("phone")
+
+    # Thread view: the full conversation with one number, oldest-first (chat order).
+    if phone:
+        thread = (
+            SmsLog.objects.filter(from_phone=phone)
+            .select_related("employee", "leave")
+            .order_by("created_at")
+        )
+        employee = next((log.employee for log in thread if log.employee), None)
+        return render(request, "dashboard/sms_thread.html", {
+            "phone": phone,
+            "employee": employee,
+            "logs": thread,
+        })
+
+    # Conversation list: one row per number, most recent activity first.
+    logs = SmsLog.objects.select_related("employee").order_by("-created_at")[:1000]
+    conversations = {}
+    for log in logs:
+        convo = conversations.get(log.from_phone)
+        if convo is None:
+            # First (newest) row for this number sets the preview + timestamp.
+            conversations[log.from_phone] = {
+                "phone": log.from_phone,
+                "employee": log.employee,
+                "last_time": log.created_at,
+                "preview": log.outbound_msg or log.inbound_msg or "",
+                "count": 1,
+            }
+        else:
+            convo["count"] += 1
+            if convo["employee"] is None and log.employee:
+                convo["employee"] = log.employee
+    return render(request, "dashboard/sms_logs.html", {
+        "conversations": list(conversations.values()),
+    })
 
 
 @login_required

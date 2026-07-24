@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ employee|default:phone }} — SMS — Relay{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4" style="gap:12px;">
+  <a href="{% url 'dashboard:sms_logs' %}" class="relay-btn" style="font-family:'IBM Plex Mono',monospace;font-size:14px;padding:7px 14px;">← Back</a>
+  <div>
+    <h2 class="page-title" style="margin-bottom:2px;">{{ employee|default:"Unknown" }}</h2>
+    <span class="section-label" style="font-family:'IBM Plex Mono',monospace;">{{ phone }}</span>
+  </div>
+</div>
+
+<div style="background:#F1EADD;border:1px solid #E4DACB;padding:20px;">
+  <div class="d-flex flex-column gap-2">
+    {% for log in logs %}
+      <!-- Inbound (person → Relay): right, terra cotta -->
+      {% if log.inbound_msg %}
+      <div class="d-flex justify-content-end">
+        <div style="max-width:72%;">
+          <div style="background:#8A3A2E;color:#FBF9F4;font-family:'IBM Plex Mono',monospace;font-size:14px;line-height:1.5;padding:10px 14px;white-space:pre-wrap;">{{ log.inbound_msg }}</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#B0A596;margin-top:2px;">{{ log.created_at|date:"M d · H:i" }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Outbound (Relay → person): left, surface -->
+      {% if log.outbound_msg %}
+      <div class="d-flex justify-content-start">
+        <div style="max-width:72%;">
+          <div style="background:#FBF9F4;border:1px solid #E4DACB;color:#2B2521;font-family:'IBM Plex Mono',monospace;font-size:14px;line-height:1.5;padding:10px 14px;white-space:pre-wrap;">{{ log.outbound_msg }}</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#B0A596;margin-top:2px;">{{ log.created_at|date:"M d · H:i" }}</div>
+        </div>
+      </div>
+      {% endif %}
+    {% empty %}
+      <div style="text-align:center;font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:#9A8D7E;padding:24px;">No messages.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
