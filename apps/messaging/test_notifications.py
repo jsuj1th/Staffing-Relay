@@ -1149,3 +1149,41 @@ class GlobalCommandsMidFlowTests(TestCase):
         reply, _ = process_menu_response(self.phone, "STATUS", self.employee)
         self.assertIn("LEAVE STATUS", reply)
         self.assertFalse(is_in_menu_flow(self.phone))
+
+
+class ShiftNotificationToggleTests(TestCase):
+    """Global toggle silences auto shift-assign SMS; manual reminder ignores it."""
+
+    def setUp(self):
+        loc = Location.objects.create(name="L", address="a", city="c", state="TX")
+        self.employee = Employee.objects.create(
+            name="Toggle Test", phone="+15550006666",
+            employee_type=Employee.Type.PROVIDER, location=loc,
+        )
+        self.shift = Shift.objects.create(
+            employee=self.employee, date=timezone.localdate() + timedelta(days=5),
+            start_time="09:00", end_time="17:00",
+        )
+
+    @patch("apps.messaging.notifications.send_sms", return_value=True)
+    def test_assignment_notification_skipped_when_off(self, mock_send):
+        from apps.messaging.models import NotificationSetting
+        from apps.messaging.notifications import notify_shift_assigned
+        s = NotificationSetting.load()
+        s.shift_assignment_enabled = False
+        s.save()
+        result = notify_shift_assigned(self.shift, send_immediately=True)
+        self.assertIsNone(result)
+        mock_send.assert_not_called()
+
+    @patch("apps.messaging.notifications.send_sms", return_value=True)
+    def test_manual_reminder_sends_even_when_off(self, mock_send):
+        from apps.messaging.models import NotificationSetting
+        from apps.messaging.notifications import notify_shift_reminder
+        s = NotificationSetting.load()
+        s.shift_assignment_enabled = False
+        s.save()
+        ok = notify_shift_reminder(self.shift)
+        self.assertTrue(ok)
+        mock_send.assert_called_once()
+        self.assertTrue(SmsLog.objects.filter(inbound_msg="[Manual reminder]").exists())

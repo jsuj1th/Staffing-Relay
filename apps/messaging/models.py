@@ -2,6 +2,16 @@ from django.db import models
 from django.utils import timezone
 
 
+class NotificationSetting(models.Model):
+    """Global notification switches. Singleton row (pk=1)."""
+    shift_assignment_enabled = models.BooleanField(default=True)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class SmsLog(models.Model):
     from_phone = models.CharField(max_length=20)
     employee = models.ForeignKey(

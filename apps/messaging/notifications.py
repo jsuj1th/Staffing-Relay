@@ -211,7 +211,13 @@ def send_all_pending_notifications():
 # Convenience functions for common notifications
 
 def notify_shift_assigned(shift, send_immediately=False):
-    """Notify employee of a new shift assignment. Same-day shifts always send now."""
+    """Notify employee of a new shift assignment. Same-day shifts always send now.
+    Skipped entirely when shift-assignment notifications are globally turned off."""
+    from .models import NotificationSetting
+    if not NotificationSetting.load().shift_assignment_enabled:
+        logger.info("Shift-assignment notifications OFF; skipping shift=%s", shift.id)
+        return None
+
     if shift.date == timezone.localdate():
         send_immediately = True
 
@@ -224,6 +230,24 @@ def notify_shift_assigned(shift, send_immediately=False):
         related_object_id=shift.id,
         send_immediately=send_immediately,
     )
+
+
+def notify_shift_reminder(shift):
+    """Manual, on-demand reminder of a single shift. Always sends now and ignores
+    the global shift-notification toggle (it's a deliberate manual action)."""
+    message = (
+        f"Reminder: you're scheduled {shift.date.strftime('%a, %b %d')} "
+        f"| {shift.start_time} - {shift.end_time}"
+    )
+    ok = send_sms(shift.employee.phone, message)
+    if ok:
+        SmsLog.objects.create(
+            from_phone=shift.employee.phone,
+            employee=shift.employee,
+            inbound_msg="[Manual reminder]",
+            outbound_msg=message,
+        )
+    return ok
 
 
 def notify_shift_cancelled(shift, send_immediately=False):

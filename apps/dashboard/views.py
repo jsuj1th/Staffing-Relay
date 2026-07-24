@@ -432,13 +432,44 @@ def shift_day(request):
         for emp in employees
     ]
 
+    from apps.messaging.models import NotificationSetting
     return render(request, "dashboard/shifts.html", {
         "locations": locations,
         "selected_location": selected_location,
         "selected_date": selected_date,
         "rows": rows,
         "today": today,
+        "shift_sms_enabled": NotificationSetting.load().shift_assignment_enabled,
     })
+
+
+@login_required
+def toggle_shift_notifications(request):
+    """Flip the global shift-assignment SMS switch."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    from apps.messaging.models import NotificationSetting
+    setting = NotificationSetting.load()
+    setting.shift_assignment_enabled = not setting.shift_assignment_enabled
+    setting.save(update_fields=["shift_assignment_enabled"])
+    state = "ON" if setting.shift_assignment_enabled else "OFF"
+    logger.info("Shift-assignment SMS toggled %s by %s", state, request.user)
+    messages.success(request, f"Shift-assignment notifications turned {state}.")
+    return redirect(request.META.get("HTTP_REFERER") or "dashboard:shifts")
+
+
+@login_required
+def shift_remind(request, pk):
+    """Manually text an employee a reminder of a specific shift."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    shift = get_object_or_404(Shift, pk=pk)
+    from apps.messaging.notifications import notify_shift_reminder
+    if notify_shift_reminder(shift):
+        messages.success(request, f"Reminder sent to {shift.employee.name}.")
+    else:
+        messages.error(request, f"Could not send reminder to {shift.employee.name} (check the number / SMS logs).")
+    return redirect(request.META.get("HTTP_REFERER") or "dashboard:shifts")
 
 
 @login_required
