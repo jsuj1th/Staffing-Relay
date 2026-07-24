@@ -93,9 +93,21 @@ def process_menu_response(phone, text, employee):
     if DEBUG:
         logger.debug(f"Menu transition incoming: phone={phone}, current_state={state}, user_input={text}")
 
+    cmd = text.strip().upper()
+
+    # Global commands that work at any point in a flow (not just the main menu).
+    # Without these, typing MENU/STATUS mid-request was swallowed as a date/S-R
+    # answer because all in-flow text routes here.
+    if cmd == "MENU":
+        start_main_menu(phone)  # resets the session to the main menu
+        return None, None
+    if cmd == "STATUS":
+        clear_user_session(phone)
+        return build_status_message(employee), None
+
     # Handle EXIT at any point (except main menu). NB: "CANCEL" is a carrier
     # opt-out keyword — it never reaches us — so the abort word is EXIT.
-    if text.strip().upper() == "EXIT" and state != LeaveMenuState.AWAITING_MAIN_CHOICE:
+    if cmd == "EXIT" and state != LeaveMenuState.AWAITING_MAIN_CHOICE:
         clear_user_session(phone)
         return "Leave request cancelled.", None
 

@@ -1121,3 +1121,31 @@ class AdminLeaveManagementTests(TestCase):
         self.assertIn("6 days", notif.message_body)
         # Should be marked as sent (send_immediately=True)
         self.assertTrue(notif.is_sent)
+
+
+class GlobalCommandsMidFlowTests(TestCase):
+    """MENU and STATUS must work even while a leave request is in progress."""
+
+    def setUp(self):
+        cache.clear()
+        _p = patch("apps.messaging.leave_menu.send_sms", return_value=True)
+        self.addCleanup(_p.stop)
+        _p.start()
+        loc = Location.objects.create(name="L", address="a", city="c", state="TX")
+        self.employee = Employee.objects.create(
+            name="Mid Flow", phone="+15550007777",
+            employee_type=Employee.Type.PROVIDER, location=loc,
+        )
+        self.phone = "+15550007777"
+
+    def test_menu_midflow_returns_to_main_menu(self):
+        start_leave_menu(self.phone)  # now AWAITING_START_DATE
+        result = process_menu_response(self.phone, "MENU", self.employee)
+        self.assertEqual(result, (None, None))
+        self.assertEqual(get_user_session(self.phone)["state"], LeaveMenuState.AWAITING_MAIN_CHOICE)
+
+    def test_status_midflow_returns_status_and_clears(self):
+        start_leave_menu(self.phone)
+        reply, _ = process_menu_response(self.phone, "STATUS", self.employee)
+        self.assertIn("LEAVE STATUS", reply)
+        self.assertFalse(is_in_menu_flow(self.phone))
