@@ -444,6 +444,67 @@ def shift_day(request):
 
 
 @login_required
+def combined_schedule(request):
+    """All locations at once for one week (Mon–Fri): locations as rows, days as
+    columns, everyone scheduled in each cell, color-coded by confirmation."""
+    today = timezone.localdate()
+    try:
+        week_date = date.fromisoformat(request.GET["date"]) if request.GET.get("date") else today
+    except (ValueError, KeyError):
+        week_date = today
+    week_start = week_date - timedelta(days=week_date.weekday())  # Monday
+    days = [week_start + timedelta(days=i) for i in range(5)]     # Mon–Fri
+
+    shifts = (
+        Shift.objects.filter(date__gte=days[0], date__lte=days[-1], employee__is_active=True)
+        .select_related("employee", "employee__location")
+        .prefetch_related("employee__employee_locations__location")
+        .order_by("employee__employee_type", "employee__name", "start_time")
+    )
+
+    locations = list(Location.objects.all().order_by("name"))
+    grid = {loc.id: {d: [] for d in days} for loc in locations}
+    unassigned = {d: [] for d in days}
+    for s in shifts:
+        loc = s.employee.location
+        if loc is None:  # shared employee — use their primary/first linked location
+            el = s.employee.employee_locations.first()
+            loc = el.location if el else None
+        bucket = grid[loc.id] if (loc and loc.id in grid) else unassigned
+        bucket[s.date].append(s)
+
+    rows = [{"location": loc, "cells": [grid[loc.id][d] for d in days]} for loc in locations]
+    if any(unassigned[d] for d in days):
+        rows.append({"location": None, "cells": [unassigned[d] for d in days]})
+
+    return render(request, "dashboard/combined_schedule.html", {
+        "week_start": week_start,
+        "prev_week": (week_start - timedelta(days=7)).isoformat(),
+        "next_week": (week_start + timedelta(days=7)).isoformat(),
+        "this_week": (today - timedelta(days=today.weekday())).isoformat(),
+        "days": days,
+        "rows": rows,
+        "today": today,
+    })
+
+
+@login_required
+def shift_toggle_status(request, pk):
+    """Toggle a shift's confirmed (blue) or needs_attention (yellow) flag."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    shift = get_object_or_404(Shift, pk=pk)
+    action = request.POST.get("action")
+    if action == "confirm":
+        shift.confirmed = not shift.confirmed
+        shift.save(update_fields=["confirmed"])
+    elif action == "flag":
+        shift.needs_attention = not shift.needs_attention
+        shift.save(update_fields=["needs_attention"])
+    return redirect(request.META.get("HTTP_REFERER") or "dashboard:combined_schedule")
+
+
+@login_required
 def toggle_shift_notifications(request):
     """Flip the global shift-assignment SMS switch."""
     if request.method != "POST":

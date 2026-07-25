@@ -1087,3 +1087,45 @@ class SmsLogConversationTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.context["logs"]), 2)
         self.assertEqual(resp.context["employee"], self.emp)
+
+
+class CombinedScheduleTests(TestCase):
+    """Combined weekly view groups shifts by location; toggle flips confirmed/attention."""
+
+    def setUp(self):
+        from datetime import time
+        self.client = Client()
+        User.objects.create_user(username='admin', password='admin123')
+        self.client.login(username='admin', password='admin123')
+        self.loc = Location.objects.create(name="RRP", address="a", city="c", state="TX")
+        self.provider = Employee.objects.create(
+            name="Dr. Valmiki", phone="+15550003001",
+            employee_type=Employee.Type.PROVIDER, location=self.loc,
+        )
+        # Monday of the current week
+        today = date.today()
+        self.monday = today - timedelta(days=today.weekday())
+        self.shift = Shift.objects.create(
+            employee=self.provider, date=self.monday,
+            start_time=time(9, 0), end_time=time(16, 0),
+        )
+
+    def test_view_renders_location_and_person(self):
+        resp = self.client.get("/dashboard/combined/", {"date": self.monday.isoformat()})
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("RRP", html)
+        self.assertIn("Dr. Valmiki", html)
+        self.assertIn("9-4", html)  # compact_time
+
+    def test_toggle_confirm_and_flag(self):
+        url = f"/dashboard/shifts/{self.shift.id}/toggle-status/"
+        self.client.post(url, {"action": "confirm"})
+        self.shift.refresh_from_db()
+        self.assertTrue(self.shift.confirmed)
+        self.client.post(url, {"action": "flag"})
+        self.shift.refresh_from_db()
+        self.assertTrue(self.shift.needs_attention)
+        self.client.post(url, {"action": "confirm"})  # toggles back off
+        self.shift.refresh_from_db()
+        self.assertFalse(self.shift.confirmed)

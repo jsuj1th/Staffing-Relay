@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Combined Schedule — Relay{% endblock %}
+
+{% block content %}
+<style>
+  .cs-wrap { overflow-x: auto; }
+  .cs-table { border-collapse: collapse; width: 100%; min-width: 900px; background: #FBF9F4; }
+  .cs-table th, .cs-table td {
+    border: 1px solid #D6CBBA; vertical-align: top; padding: 8px 10px;
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 13px;
+  }
+  .cs-table thead th {
+    background: #F1EADD; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.05em; color: #6B5F54; text-align: left;
+  }
+  .cs-loc { background: #F1EADD; font-family: 'Spectral', serif; font-weight: 600;
+            font-size: 15px; color: #2B2521; white-space: nowrap; width: 90px; }
+  .cs-entry { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+  .cs-name { border: none; background: none; padding: 1px 4px; cursor: pointer;
+             font: inherit; text-align: left; line-height: 1.3; border-radius: 2px; }
+  .cs-flag { border: 1px solid #D6CBBA; background: #FBF9F4; cursor: pointer;
+             font-size: 10px; line-height: 1; padding: 1px 4px; color: #9A8D7E; border-radius: 2px; }
+  /* Confirmed provider — turquoise/blue */
+  .cs-confirmed .cs-name { background: #9FE0E0; color: #123; }
+  /* Provider scheduled, not confirmed — purple */
+  .cs-unconfirmed .cs-name { color: #7C3AED; font-weight: 600; }
+  /* Support staff — red italic */
+  .cs-staff .cs-name { color: #C1440E; font-style: italic; }
+  /* Needs attention — yellow highlight (wins) */
+  .cs-attention .cs-name { background: #FCE38A; color: #2B2521; }
+  .cs-legend { display: flex; gap: 16px; flex-wrap: wrap; font-family: 'IBM Plex Sans', sans-serif;
+               font-size: 12px; color: #6B5F54; margin: 6px 0 16px; }
+  .cs-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .cs-swatch { width: 14px; height: 14px; border: 1px solid #C4B7A6; display: inline-block; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-2" style="flex-wrap:wrap;gap:10px;">
+  <div>
+    <h2 class="page-title" style="margin-bottom:2px;">Combined Schedule</h2>
+    <div class="section-label">all locations · week of {{ week_start|date:"M j, Y" }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="relay-btn" href="?date={{ prev_week }}">← Prev</a>
+    <a class="relay-btn" href="?date={{ this_week }}">This week</a>
+    <a class="relay-btn" href="?date={{ next_week }}">Next →</a>
+  </div>
+</div>
+
+<div class="cs-legend">
+  <span><span class="cs-swatch" style="background:#9FE0E0;"></span> Confirmed provider</span>
+  <span><span class="cs-swatch" style="background:#fff;"></span><span style="color:#7C3AED;font-weight:600;">Provider — not confirmed</span></span>
+  <span><span class="cs-swatch" style="background:#fff;"></span><span style="color:#C1440E;font-style:italic;">Support staff</span></span>
+  <span><span class="cs-swatch" style="background:#FCE38A;"></span> Needs attention</span>
+  <span style="color:#9A8D7E;">Click a name to confirm · <b>!</b> to flag</span>
+</div>
+
+<div class="cs-wrap">
+  <table class="cs-table">
+    <thead>
+      <tr>
+        <th style="width:90px;">Combined</th>
+        {% for d in days %}<th>{{ d|date:"D M j" }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="cs-loc">{{ row.location.name|default:"Unassigned" }}</td>
+        {% for cell in row.cells %}
+        <td>
+          {% for s in cell %}
+          <div class="cs-entry {% if s.needs_attention %}cs-attention{% elif s.employee.employee_type == 'PROVIDER' %}{% if s.confirmed %}cs-confirmed{% else %}cs-unconfirmed{% endif %}{% else %}cs-staff{% endif %}">
+            <form method="post" action="{% url 'dashboard:shift_toggle_status' s.pk %}" style="display:inline;margin:0;">
+              {% csrf_token %}<input type="hidden" name="action" value="confirm">
+              <button type="submit" class="cs-name" title="Toggle confirmed">{{ s.employee.name }}{% if s.compact_time %} {{ s.compact_time }}{% endif %}</button>
+            </form>
+            <form method="post" action="{% url 'dashboard:shift_toggle_status' s.pk %}" style="display:inline;margin:0;">
+              {% csrf_token %}<input type="hidden" name="action" value="flag">
+              <button type="submit" class="cs-flag" title="Flag for attention">!</button>
+            </form>
+          </div>
+          {% empty %}
+          <span style="color:#C4B7A6;">—</span>
+          {% endfor %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
