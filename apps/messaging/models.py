@@ -4,24 +4,47 @@ from django.utils import timezone
 
 class NotificationSetting(models.Model):
     """Global notification switches. Singleton row (pk=1)."""
-    shift_assignment_enabled = models.BooleanField(default=True)
-    # Admin/office contacts emailed on every leave request and decision.
-    # ponytail: plain text list, not a Recipient model — add one if you ever need
-    # per-recipient opt-outs or names.
-    leave_email_enabled = models.BooleanField(default=True)
-    leave_email_recipients = models.TextField(
-        blank=True,
-        help_text="Admin emails, one per line or comma-separated.",
-    )
+    # Gates ALL employee shift texts: assignments, removals and changes.
+    # Manual per-shift reminders deliberately bypass it.
+    shift_sms_enabled = models.BooleanField(default=True)
+    # Master switch for leave alerts to the admin contacts below.
+    leave_alerts_enabled = models.BooleanField(default=True)
 
     @classmethod
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
 
+
+class AdminContact(models.Model):
+    """A person (office manager, owner, …) alerted about employee leave activity,
+    on the channel they picked."""
+    class Channel(models.TextChoices):
+        EMAIL = "EMAIL", "Email only"
+        SMS = "SMS", "SMS only"
+        BOTH = "BOTH", "Email and SMS"
+
+    name = models.CharField(max_length=120)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    role = models.CharField(max_length=120, blank=True, help_text="e.g. Office Manager")
+    channel = models.CharField(max_length=10, choices=Channel.choices, default=Channel.EMAIL)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_channel_display()})"
+
     @property
-    def recipient_list(self):
-        return [e.strip() for e in self.leave_email_recipients.replace(",", "\n").splitlines() if e.strip()]
+    def wants_email(self):
+        return bool(self.email) and self.channel in (self.Channel.EMAIL, self.Channel.BOTH)
+
+    @property
+    def wants_sms(self):
+        return bool(self.phone) and self.channel in (self.Channel.SMS, self.Channel.BOTH)
 
 
 class SmsLog(models.Model):

@@ -8,6 +8,16 @@ class Shift(models.Model):
         on_delete=models.CASCADE,
         related_name="shifts",
     )
+    # Where this shift is worked. Needed on the shift itself: shared staff
+    # (management, floaters) have no home location and are linked to several,
+    # so the employee record can't say which site a given day belongs to.
+    location = models.ForeignKey(
+        "locations.Location",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="shifts",
+    )
     date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()
@@ -28,6 +38,18 @@ class Shift(models.Model):
 
     def __str__(self):
         return f"{self.employee.name} — {self.date} {self.start_time}-{self.end_time}"
+
+    @property
+    def site(self):
+        """Location this shift belongs to. Falls back to the employee's home
+        location, then their first linked one, for shifts created before
+        location was recorded per shift."""
+        if self.location_id:
+            return self.location
+        if self.employee.location_id:
+            return self.employee.location
+        link = self.employee.employee_locations.first()
+        return link.location if link else None
 
     @property
     def compact_time(self):

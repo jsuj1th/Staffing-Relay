@@ -4,51 +4,100 @@
 {% block content %}
 <div class="mb-4">
   <h2 class="page-title" style="margin-bottom:2px;">Notifications</h2>
-  <div class="section-label">who gets told what</div>
+  <div class="section-label">who gets told what, and how</div>
 </div>
 
-<form method="post" style="max-width:720px;">
-  {% csrf_token %}
+<!-- Admin contacts -->
+<div style="background:#F1EADD; border:1px solid #E4DACB; padding:20px; margin-bottom:20px; max-width:900px;">
+  <h3 style="font-family:'Spectral',serif; font-size:17px; margin:0 0 4px;">Admin contacts</h3>
+  <p style="font-size:13px; color:#6B5F54; margin:0 0 16px;">
+    Alerted every time an employee requests leave, and again when it is approved, rejected or
+    cancelled — whether the decision came from the dashboard or over SMS. Each contact gets it
+    on the channel they picked.
+  </p>
 
-  <div style="background:#F1EADD; border:1px solid #E4DACB; padding:20px; margin-bottom:20px;">
-    <h3 style="font-family:'Spectral',serif; font-size:17px; margin:0 0 4px;">Admin leave emails</h3>
-    <p style="font-size:13px; color:#6B5F54; margin:0 0 14px;">
-      These contacts are emailed every time an employee requests leave, and again when it is
-      approved, rejected or cancelled — whether the decision came from the dashboard or over SMS.
-    </p>
+  <table style="width:100%; border-collapse:collapse; background:#FBF9F4; margin-bottom:18px;">
+    <thead>
+      <tr>
+        <th style="border:1px solid #D6CBBA; padding:8px 10px; text-align:left; font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#6B5F54; background:#F1EADD;">Name</th>
+        <th style="border:1px solid #D6CBBA; padding:8px 10px; text-align:left; font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#6B5F54; background:#F1EADD;">Contact</th>
+        <th style="border:1px solid #D6CBBA; padding:8px 10px; text-align:left; font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#6B5F54; background:#F1EADD;">Notify by</th>
+        <th style="border:1px solid #D6CBBA; padding:8px 10px; text-align:left; font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#6B5F54; background:#F1EADD;">Status</th>
+        <th style="border:1px solid #D6CBBA; padding:8px 10px; background:#F1EADD;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in contacts %}
+      <tr style="{% if not c.is_active %}opacity:.55;{% endif %}">
+        <td style="border:1px solid #D6CBBA; padding:8px 10px;">
+          <strong>{{ c.name }}</strong>
+          {% if c.role %}<div style="font-size:12px; color:#8A8073;">{{ c.role }}</div>{% endif %}
+        </td>
+        <td style="border:1px solid #D6CBBA; padding:8px 10px; font-family:'IBM Plex Mono',monospace; font-size:12px;">
+          {% if c.email %}{{ c.email }}<br>{% endif %}{{ c.phone|default:"" }}
+        </td>
+        <td style="border:1px solid #D6CBBA; padding:8px 10px; font-size:13px;">{{ c.get_channel_display }}</td>
+        <td style="border:1px solid #D6CBBA; padding:8px 10px; font-size:13px;">
+          {% if c.is_active %}<span style="color:#5F7A52;">Active</span>{% else %}<span style="color:#8A8073;">Paused</span>{% endif %}
+        </td>
+        <td style="border:1px solid #D6CBBA; padding:8px 10px; white-space:nowrap;">
+          <a class="relay-btn" style="font-size:11px; padding:5px 9px;" href="{% url 'dashboard:admin_contact_edit' c.pk %}">Edit</a>
+          <form method="post" action="{% url 'dashboard:admin_contact_toggle' c.pk %}" style="display:inline; margin:0;">
+            {% csrf_token %}
+            <button class="relay-btn" style="font-size:11px; padding:5px 9px;">{% if c.is_active %}Pause{% else %}Resume{% endif %}</button>
+          </form>
+          <form method="post" action="{% url 'dashboard:admin_contact_delete' c.pk %}" style="display:inline; margin:0;"
+                onsubmit="return confirm('Remove {{ c.name|escapejs }} from leave alerts?');">
+            {% csrf_token %}
+            <button class="relay-btn" style="font-size:11px; padding:5px 9px; color:#C1440E;">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="border:1px solid #D6CBBA; padding:14px; color:#8A8073; font-size:13px;">
+        No admin contacts yet — nobody is being alerted about leave.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-    <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin-bottom:14px;">
-      <input type="checkbox" name="leave_email_enabled" {% if setting.leave_email_enabled %}checked{% endif %}>
-      Send leave emails
-    </label>
-
-    <label class="section-label" for="recipients">Admin emails — one per line</label>
-    <textarea id="recipients" name="leave_email_recipients" rows="5"
-              placeholder="office@clinic.com&#10;manager@clinic.com"
-              style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:10px;
-                     border:1px solid #C4B7A6; border-radius:3px; background:#FBF9F4;">{{ setting.leave_email_recipients }}</textarea>
-    {% if setting.recipient_list %}
-      <div style="font-size:12px; color:#6B5F54; margin-top:6px;">
-        Currently notifying {{ setting.recipient_list|length }} contact{{ setting.recipient_list|length|pluralize }}.
+  <!-- Add contact -->
+  <form method="post">
+    {% csrf_token %}
+    <div class="section-label" style="margin-bottom:8px;">Add a contact</div>
+    <div class="row g-2" style="max-width:860px;">
+      <div class="col-md-3">{{ form.name }}{% for e in form.name.errors %}<div style="color:#C1440E; font-size:12px;">{{ e }}</div>{% endfor %}</div>
+      <div class="col-md-3">{{ form.role }}</div>
+      <div class="col-md-3">{{ form.email }}{% for e in form.email.errors %}<div style="color:#C1440E; font-size:12px;">{{ e }}</div>{% endfor %}</div>
+      <div class="col-md-3">{{ form.phone }}{% for e in form.phone.errors %}<div style="color:#C1440E; font-size:12px;">{{ e }}</div>{% endfor %}</div>
+      <div class="col-md-3">{{ form.channel }}</div>
+      <div class="col-md-3">
+        <button type="submit" name="action" value="add" class="relay-btn relay-btn-primary">Add contact</button>
       </div>
-    {% endif %}
-  </div>
+    </div>
+  </form>
+</div>
 
+<!-- Global switches -->
+<form method="post" style="max-width:900px;">
+  {% csrf_token %}
   <div style="background:#F1EADD; border:1px solid #E4DACB; padding:20px; margin-bottom:20px;">
-    <h3 style="font-family:'Spectral',serif; font-size:17px; margin:0 0 4px;">Employee shift SMS</h3>
-    <p style="font-size:13px; color:#6B5F54; margin:0 0 14px;">
-      Texts employees when a new shift is assigned to them. Cancellations, changes and manual
-      reminders always send.
-    </p>
+    <h3 style="font-family:'Spectral',serif; font-size:17px; margin:0 0 14px;">Switches</h3>
+
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin-bottom:10px;">
+      <input type="checkbox" name="leave_alerts_enabled" {% if setting.leave_alerts_enabled %}checked{% endif %}>
+      Send leave alerts to admin contacts
+    </label>
     <label style="display:flex; align-items:center; gap:8px; font-size:14px;">
-      <input type="checkbox" name="shift_assignment_enabled" {% if setting.shift_assignment_enabled %}checked{% endif %}>
-      Send shift-assignment texts
+      <input type="checkbox" name="shift_sms_enabled" {% if setting.shift_sms_enabled %}checked{% endif %}>
+      Text employees about their shifts — assignments, removals and changes
+      <span style="font-size:12px; color:#8A8073;">(manual per-shift reminders always send)</span>
     </label>
   </div>
 
   <div class="d-flex gap-2">
-    <button type="submit" name="action" value="save" class="relay-btn relay-btn-primary">Save</button>
-    <button type="submit" name="action" value="test" class="relay-btn">Send test email</button>
+    <button type="submit" name="action" value="save" class="relay-btn relay-btn-primary">Save switches</button>
+    <button type="submit" name="action" value="test" class="relay-btn">Send test alert</button>
   </div>
 </form>
 {% endblock %}

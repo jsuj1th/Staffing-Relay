@@ -29,7 +29,7 @@
     .s { font-size: 12px; line-height: 1.35; margin-bottom: 3px; }
     .s .t { font-family: 'IBM Plex Mono', monospace; color: #6B5F54; }
     .s.attention { background: #FCE38A; }
-    .s.staff { color: #C1440E; font-style: italic; }
+    .s.confirmed { background: #9FE0E0; }
     footer { max-width: 1100px; margin: 12px auto 0; font-size: 12px; color: #6B5F54; }
     @media print { body { background: #fff; } .nav { display: none; } }
   </style>
@@ -62,7 +62,7 @@
           <td class="{% if not cell.in_month %}dim{% endif %} {% if cell.is_today %}today{% endif %}">
             <div class="daynum">{{ cell.date|date:"j" }}</div>
             {% for s in cell.shifts %}
-            <div class="s {% if s.needs_attention %}attention{% elif s.employee.employee_type != 'PROVIDER' %}staff{% endif %}">
+            <div class="s {% if s.needs_attention %}attention{% elif s.confirmed %}confirmed{% endif %}">
               {% if not employee %}{{ s.employee.name }}<br>{% endif %}
               <span class="t">{{ s.compact_time }}</span>
             </div>

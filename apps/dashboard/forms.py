@@ -3,6 +3,7 @@ from datetime import time, datetime
 from apps.leaves.models import Leave
 from apps.accounts.models import Employee
 from apps.shifts.models import Shift
+from apps.messaging.models import AdminContact
 
 # Generate 30-minute time choices (7am - 6pm only)
 TIME_CHOICES = [('', 'Select time...')]
@@ -68,10 +69,14 @@ class ShiftForm(forms.ModelForm):
 
     class Meta:
         model = Shift
-        fields = ('employee', 'date', 'start_time', 'end_time')
+        fields = ('employee', 'location', 'date', 'start_time', 'end_time')
         widgets = {
             'employee': forms.Select(attrs={'class': 'form-control'}),
+            'location': forms.Select(attrs={'class': 'form-control'}),
             'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        }
+        help_texts = {
+            'location': 'Where the shift is worked. Leave blank to use the employee\'s home location.',
         }
 
     def clean(self):
@@ -108,3 +113,30 @@ class ShiftForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class AdminContactForm(forms.ModelForm):
+    """Add/edit an admin contact for leave alerts."""
+
+    class Meta:
+        model = AdminContact
+        fields = ["name", "role", "email", "phone", "channel", "is_active"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Jane Doe"}),
+            "role": forms.TextInput(attrs={"class": "form-control", "placeholder": "Office Manager"}),
+            "email": forms.EmailInput(attrs={"class": "form-control", "placeholder": "jane@clinic.com"}),
+            "phone": forms.TextInput(attrs={"class": "form-control", "placeholder": "(512) 555-0142"}),
+            "channel": forms.Select(attrs={"class": "form-control"}),
+        }
+
+    def clean_phone(self):
+        return Employee.normalize_phone(self.cleaned_data.get("phone", ""))
+
+    def clean(self):
+        cleaned = super().clean()
+        channel = cleaned.get("channel")
+        if channel in (AdminContact.Channel.EMAIL, AdminContact.Channel.BOTH) and not cleaned.get("email"):
+            self.add_error("email", "An email address is required for this notification mode.")
+        if channel in (AdminContact.Channel.SMS, AdminContact.Channel.BOTH) and not cleaned.get("phone"):
+            self.add_error("phone", "A mobile number is required for this notification mode.")
+        return cleaned

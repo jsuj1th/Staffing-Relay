@@ -3,8 +3,6 @@ import json
 import logging
 from datetime import date, timedelta
 from django.core import signing
-from django.core.exceptions import ValidationError
-from django.core.validators import validate_email
 from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -23,7 +21,7 @@ from apps.messaging.models import SmsLog
 from apps.messaging.sms import send_sms
 from apps.leaves.ratio import get_active_counts
 from apps.shifts.models import Shift
-from apps.dashboard.forms import ShiftForm
+from apps.dashboard.forms import ShiftForm, AdminContactForm
 
 logger = logging.getLogger(__name__)
 
@@ -444,7 +442,7 @@ def shift_day(request):
         "selected_date": selected_date,
         "rows": rows,
         "today": today,
-        "shift_sms_enabled": NotificationSetting.load().shift_assignment_enabled,
+        "shift_sms_enabled": NotificationSetting.load().shift_sms_enabled,
     })
 
 
@@ -462,7 +460,7 @@ def combined_schedule(request):
 
     shifts = (
         Shift.objects.filter(date__gte=days[0], date__lte=days[-1], employee__is_active=True)
-        .select_related("employee", "employee__location")
+        .select_related("employee", "employee__location", "location")
         .prefetch_related("employee__employee_locations__location")
         .order_by("employee__employee_type", "employee__name", "start_time")
     )
@@ -471,16 +469,35 @@ def combined_schedule(request):
     grid = {loc.id: {d: [] for d in days} for loc in locations}
     unassigned = {d: [] for d in days}
     for s in shifts:
-        loc = s.employee.location
-        if loc is None:  # shared employee — use their primary/first linked location
-            el = s.employee.employee_locations.first()
-            loc = el.location if el else None
+        loc = s.site  # the shift's own location, falling back to the employee's
         bucket = grid[loc.id] if (loc and loc.id in grid) else unassigned
         bucket[s.date].append(s)
 
-    rows = [{"location": loc, "cells": [grid[loc.id][d] for d in days]} for loc in locations]
+    # Who can be assigned at each location: its own providers/MAs plus shared staff
+    # linked to it. Leave conflicts are rejected server-side by api_add_shift.
+    assignable = {loc.id: [] for loc in locations}
+    for emp in (
+        Employee.objects.filter(is_active=True)
+        .prefetch_related("employee_locations")
+        .order_by("employee_type", "name")
+    ):
+        loc_ids = {el.location_id for el in emp.employee_locations.all()}
+        if emp.location_id:
+            loc_ids.add(emp.location_id)
+        for loc_id in loc_ids & assignable.keys():
+            assignable[loc_id].append(emp)
+
+    rows = [{
+        "location": loc,
+        "cells": [{"date": d, "shifts": grid[loc.id][d]} for d in days],
+        "employees": assignable[loc.id],
+    } for loc in locations]
     if any(unassigned[d] for d in days):
-        rows.append({"location": None, "cells": [unassigned[d] for d in days]})
+        rows.append({
+            "location": None,
+            "cells": [{"date": d, "shifts": unassigned[d]} for d in days],
+            "employees": [],
+        })
 
     return render(request, "dashboard/combined_schedule.html", {
         "week_start": week_start,
@@ -517,9 +534,9 @@ def toggle_shift_notifications(request):
         return JsonResponse({"error": "Method not allowed"}, status=405)
     from apps.messaging.models import NotificationSetting
     setting = NotificationSetting.load()
-    setting.shift_assignment_enabled = not setting.shift_assignment_enabled
-    setting.save(update_fields=["shift_assignment_enabled"])
-    state = "ON" if setting.shift_assignment_enabled else "OFF"
+    setting.shift_sms_enabled = not setting.shift_sms_enabled
+    setting.save(update_fields=["shift_sms_enabled"])
+    state = "ON" if setting.shift_sms_enabled else "OFF"
     logger.info("Shift-assignment SMS toggled %s by %s", state, request.user)
     messages.success(request, f"Shift-assignment notifications turned {state}.")
     return redirect(request.META.get("HTTP_REFERER") or "dashboard:shifts")
@@ -574,8 +591,11 @@ def weekly_planner(request):
     # Get all shifts for this week
     shifts_by_day = {}
     if selected_location:
+        # Shifts worked at this location: the shift's own location when recorded,
+        # else the employee's home location (shifts created before that existed).
         shifts = Shift.objects.filter(
-            employee__location=selected_location,
+            Q(location=selected_location)
+            | Q(location__isnull=True, employee__location=selected_location),
             date__gte=week_start,
             date__lte=week_end,
         ).select_related("employee").order_by("date", "start_time")
@@ -660,9 +680,14 @@ def api_add_shift_to_planner(request):
         if end_time <= start_time:
             return JsonResponse({"error": "End time must be after start time."}, status=400)
 
+        # Location the shift is worked at — the planner/grid cell it was dropped
+        # into. Falls back to the employee's home location.
+        location_id = data.get("location_id") or employee.location_id
+
         shift = Shift.objects.create(
             employee=employee,
             date=shift_date,
+            location_id=location_id,
             start_time=start_time,
             end_time=end_time,
             created_by=request.user,
@@ -724,7 +749,7 @@ def api_copy_week(request):
 
         # Get shifts from source week
         shifts_to_copy = Shift.objects.filter(
-            employee__location=location,
+            Q(location=location) | Q(location__isnull=True, employee__location=location),
             date__gte=from_week,
             date__lte=from_week_end,
         )
@@ -749,6 +774,7 @@ def api_copy_week(request):
                 new_shift = Shift.objects.create(
                     employee=shift.employee,
                     date=new_date,
+                    location=shift.location,
                     start_time=shift.start_time,
                     end_time=shift.end_time,
                     created_by=request.user,
@@ -794,6 +820,7 @@ def shift_create(request):
             for week in range(1, repeat_weeks + 1):
                 Shift.objects.create(
                     employee=shift.employee, date=shift.date + timedelta(weeks=week),
+                    location=shift.location,
                     start_time=shift.start_time, end_time=shift.end_time,
                     created_by=request.user,
                 )
@@ -1179,46 +1206,96 @@ def public_schedule(request, token):
     })
 
 
-# ─── Notification settings (admin leave emails) ───
+# ─── Notification settings & admin contacts ───
 
 @login_required
 def notification_settings(request):
-    """Manage the admin contacts that get emailed on leave activity."""
-    from apps.messaging.models import NotificationSetting
+    """Global switches + the admin contacts alerted about leave activity."""
+    from apps.messaging.models import AdminContact, NotificationSetting
 
     setting = NotificationSetting.load()
+    form = AdminContactForm()
+
     if request.method == "POST":
         action = request.POST.get("action", "save")
-        if action == "test":
-            from apps.messaging.leave_emails import send_leave_email
+
+        if action == "add":
+            form = AdminContactForm(request.POST)
+            if form.is_valid():
+                contact = form.save()
+                logger.info("Admin contact added by %s: %s (%s)", request.user, contact.name, contact.channel)
+                messages.success(request, f"{contact.name} will now be notified by {contact.get_channel_display().lower()}.")
+                return redirect("dashboard:notification_settings")
+            messages.error(request, "Could not add the contact — see the highlighted fields.")
+
+        elif action == "test":
+            from apps.messaging.leave_alerts import send_leave_alert
             leave = Leave.objects.select_related("employee").first()
             if not leave:
                 messages.error(request, "No leave records yet — nothing to send a sample of.")
-            elif send_leave_email(leave, leave.status):
-                messages.success(request, f"Test email sent to {', '.join(setting.recipient_list)}.")
             else:
-                messages.error(request, "Test email not sent — check recipients, the toggle, and the logs.")
+                emails, texts = send_leave_alert(leave, leave.status)
+                if emails or texts:
+                    messages.success(request, f"Test alert sent: {emails} email(s), {texts} text(s).")
+                else:
+                    messages.error(request, "Test alert reached nobody — check the contacts, the toggle, and the logs.")
             return redirect("dashboard:notification_settings")
 
-        raw = request.POST.get("leave_email_recipients", "")
-        setting.leave_email_recipients = raw
-        setting.leave_email_enabled = bool(request.POST.get("leave_email_enabled"))
-        setting.shift_assignment_enabled = bool(request.POST.get("shift_assignment_enabled"))
-
-        invalid = []
-        for email in setting.recipient_list:
-            try:
-                validate_email(email)
-            except ValidationError:
-                invalid.append(email)
-        if invalid:
-            messages.error(request, f"Not valid email address(es): {', '.join(invalid)}")
-        else:
+        elif action == "save":
+            setting.leave_alerts_enabled = bool(request.POST.get("leave_alerts_enabled"))
+            setting.shift_sms_enabled = bool(request.POST.get("shift_sms_enabled"))
             setting.save()
-            logger.info("Notification settings updated by %s: recipients=%s leave_email=%s shift_sms=%s",
-                        request.user, setting.recipient_list,
-                        setting.leave_email_enabled, setting.shift_assignment_enabled)
+            logger.info("Notification switches updated by %s: leave_alerts=%s shift_sms=%s",
+                        request.user, setting.leave_alerts_enabled, setting.shift_sms_enabled)
             messages.success(request, "Notification settings saved.")
             return redirect("dashboard:notification_settings")
 
-    return render(request, "dashboard/notification_settings.html", {"setting": setting})
+    return render(request, "dashboard/notification_settings.html", {
+        "setting": setting,
+        "contacts": AdminContact.objects.all(),
+        "form": form,
+    })
+
+
+@login_required
+def admin_contact_edit(request, pk):
+    """Edit one admin contact (name, details, preferred channel)."""
+    from apps.messaging.models import AdminContact
+
+    contact = get_object_or_404(AdminContact, pk=pk)
+    form = AdminContactForm(request.POST or None, instance=contact)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"{contact.name} updated.")
+        return redirect("dashboard:notification_settings")
+
+    return render(request, "dashboard/admin_contact_form.html", {"form": form, "contact": contact})
+
+
+@login_required
+def admin_contact_delete(request, pk):
+    """Remove an admin contact."""
+    from apps.messaging.models import AdminContact
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    contact = get_object_or_404(AdminContact, pk=pk)
+    name = contact.name
+    contact.delete()
+    logger.info("Admin contact removed by %s: %s", request.user, name)
+    messages.success(request, f"{name} removed from leave alerts.")
+    return redirect("dashboard:notification_settings")
+
+
+@login_required
+def admin_contact_toggle(request, pk):
+    """Pause/resume alerts for one contact without deleting them."""
+    from apps.messaging.models import AdminContact
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    contact = get_object_or_404(AdminContact, pk=pk)
+    contact.is_active = not contact.is_active
+    contact.save(update_fields=["is_active"])
+    messages.success(request, f"{contact.name} alerts {'resumed' if contact.is_active else 'paused'}.")
+    return redirect("dashboard:notification_settings")

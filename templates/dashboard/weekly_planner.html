@@ -408,6 +408,7 @@
         body: JSON.stringify({
           employee_id: employeeId,
           date: date,
+          location_id: {{ selected_location.id }},
           start_time: startTime,
           end_time: endTime
         })

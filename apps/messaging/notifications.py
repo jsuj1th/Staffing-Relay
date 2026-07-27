@@ -210,12 +210,19 @@ def send_all_pending_notifications():
 
 # Convenience functions for common notifications
 
-def notify_shift_assigned(shift, send_immediately=False):
-    """Notify employee of a new shift assignment. Same-day shifts always send now.
-    Skipped entirely when shift-assignment notifications are globally turned off."""
+def shift_sms_off(shift, kind):
+    """True when employee shift texts are globally turned off. One gate for
+    assignments, removals and changes — manual reminders bypass it on purpose."""
     from .models import NotificationSetting
-    if not NotificationSetting.load().shift_assignment_enabled:
-        logger.info("Shift-assignment notifications OFF; skipping shift=%s", shift.id)
+    if NotificationSetting.load().shift_sms_enabled:
+        return False
+    logger.info("Shift SMS OFF; skipping %s for shift=%s", kind, shift.id)
+    return True
+
+
+def notify_shift_assigned(shift, send_immediately=False):
+    """Notify employee of a new shift assignment. Same-day shifts always send now."""
+    if shift_sms_off(shift, "assignment"):
         return None
 
     if shift.date == timezone.localdate():
@@ -252,6 +259,9 @@ def notify_shift_reminder(shift):
 
 def notify_shift_cancelled(shift, send_immediately=False):
     """Notify employee a shift was removed. Same-day removals always send now."""
+    if shift_sms_off(shift, "removal"):
+        return None
+
     if shift.date == timezone.localdate():
         send_immediately = True
 
@@ -268,6 +278,9 @@ def notify_shift_cancelled(shift, send_immediately=False):
 
 def notify_shift_updated(shift, send_immediately=False):
     """Notify employee a shift's date/time changed. Same-day shifts always send now."""
+    if shift_sms_off(shift, "change"):
+        return None
+
     if shift.date == timezone.localdate():
         send_immediately = True
 

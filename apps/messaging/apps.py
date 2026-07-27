@@ -5,4 +5,4 @@ class MessagingConfig(AppConfig):
     name = "apps.messaging"
 
     def ready(self):
-        from . import leave_emails  # noqa: F401  (registers leave signal receivers)
+        from . import leave_alerts  # noqa: F401  (registers leave signal receivers)

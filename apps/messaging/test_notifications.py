@@ -1170,10 +1170,30 @@ class ShiftNotificationToggleTests(TestCase):
         from apps.messaging.models import NotificationSetting
         from apps.messaging.notifications import notify_shift_assigned
         s = NotificationSetting.load()
-        s.shift_assignment_enabled = False
+        s.shift_sms_enabled = False
         s.save()
         result = notify_shift_assigned(self.shift, send_immediately=True)
         self.assertIsNone(result)
+        mock_send.assert_not_called()
+
+    @patch("apps.messaging.notifications.send_sms", return_value=True)
+    def test_removal_notification_skipped_when_off(self, mock_send):
+        from apps.messaging.models import NotificationSetting
+        from apps.messaging.notifications import notify_shift_cancelled
+        s = NotificationSetting.load()
+        s.shift_sms_enabled = False
+        s.save()
+        self.assertIsNone(notify_shift_cancelled(self.shift))
+        mock_send.assert_not_called()
+
+    @patch("apps.messaging.notifications.send_sms", return_value=True)
+    def test_change_notification_skipped_when_off(self, mock_send):
+        from apps.messaging.models import NotificationSetting
+        from apps.messaging.notifications import notify_shift_updated
+        s = NotificationSetting.load()
+        s.shift_sms_enabled = False
+        s.save()
+        self.assertIsNone(notify_shift_updated(self.shift))
         mock_send.assert_not_called()
 
     @patch("apps.messaging.notifications.send_sms", return_value=True)
@@ -1181,7 +1201,7 @@ class ShiftNotificationToggleTests(TestCase):
         from apps.messaging.models import NotificationSetting
         from apps.messaging.notifications import notify_shift_reminder
         s = NotificationSetting.load()
-        s.shift_assignment_enabled = False
+        s.shift_sms_enabled = False
         s.save()
         ok = notify_shift_reminder(self.shift)
         self.assertTrue(ok)

@@ -38,6 +38,23 @@
 
     <div class="mb-3">
       <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
+        Location
+      </label>
+      <select name="location"
+              style="width:100%; font-family:'IBM Plex Sans',sans-serif; font-size:15px; color:#2B2521; background:#FBF9F4; border:1px solid #D6CBBA; border-radius:0; padding:9px 12px; outline:none; box-sizing:border-box;">
+        <option value="">Employee's home location</option>
+        {% for loc in locations %}
+          <option value="{{ loc.id }}"
+            {% if shift.location_id == loc.id %}selected{% elif not shift and preselect_location_id == loc.id|stringformat:"i" %}selected{% endif %}>{{ loc.name }}</option>
+        {% endfor %}
+      </select>
+      <div style="font-family:'IBM Plex Sans',sans-serif; font-size:12px; color:#8A8073; margin-top:6px;">
+        Where the shift is worked — set this for staff who cover several sites.
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
         Date *
       </label>
       <input type="date" name="date" required

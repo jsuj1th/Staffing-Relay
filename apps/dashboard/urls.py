@@ -33,6 +33,9 @@ urlpatterns = [
     path("shifts/<int:pk>/edit/", views.shift_edit, name="shift_edit"),
     path("shifts/<int:pk>/delete/", views.shift_delete, name="shift_delete"),
     path("settings/notifications/", views.notification_settings, name="notification_settings"),
+    path("settings/contacts/<int:pk>/edit/", views.admin_contact_edit, name="admin_contact_edit"),
+    path("settings/contacts/<int:pk>/delete/", views.admin_contact_delete, name="admin_contact_delete"),
+    path("settings/contacts/<int:pk>/toggle/", views.admin_contact_toggle, name="admin_contact_toggle"),
     path("sms/", views.sms_log_list, name="sms_logs"),
     path("locations/<int:pk>/", views.location_detail, name="location_detail"),
 ]

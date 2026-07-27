@@ -7,15 +7,15 @@
   <div class="section-label" style="margin-top:4px">who's scheduled, by location and date</div>
 </div>
 
-<!-- Global shift-assignment SMS toggle -->
+<!-- Global shift SMS toggle (assignments, removals, changes) -->
 <div style="background:#F1EADD;border:1px solid #E4DACB;padding:10px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
   <span style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#2B2521;">
-    Shift-assignment SMS:
+    Shift SMS (assign/remove/change):
     <strong style="color:{% if shift_sms_enabled %}#5F7A52{% else %}#C1440E{% endif %};letter-spacing:0.04em;">{% if shift_sms_enabled %}ON{% else %}OFF{% endif %}</strong>
     {% if not shift_sms_enabled %}<span style="color:#9A8D7E;font-size:13px;"> — new assignments won't text employees. Use "Remind" to send manually.</span>{% endif %}
   </span>
   <form method="post" action="{% url 'dashboard:toggle_shift_notifications' %}" class="d-inline"
-        data-confirm="Turn shift-assignment SMS {% if shift_sms_enabled %}OFF{% else %}ON{% endif %}?">
+        data-confirm="Turn all shift SMS {% if shift_sms_enabled %}OFF{% else %}ON{% endif %}? Manual reminders always send.">
     {% csrf_token %}
     <button type="submit" class="relay-btn" style="font-size:12px;padding:5px 12px;">Turn {% if shift_sms_enabled %}OFF{% else %}ON{% endif %}</button>
   </form>

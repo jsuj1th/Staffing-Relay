@@ -20,18 +20,24 @@
              font: inherit; text-align: left; line-height: 1.3; border-radius: 2px; }
   .cs-flag { border: 1px solid #D6CBBA; background: #FBF9F4; cursor: pointer;
              font-size: 10px; line-height: 1; padding: 1px 4px; color: #9A8D7E; border-radius: 2px; }
-  /* Confirmed provider — turquoise/blue */
+  /* Colour carries confirmation status only — role is not colour-coded. */
   .cs-confirmed .cs-name { background: #9FE0E0; color: #123; }
-  /* Provider scheduled, not confirmed — purple */
-  .cs-unconfirmed .cs-name { color: #7C3AED; font-weight: 600; }
-  /* Support staff — red italic */
-  .cs-staff .cs-name { color: #C1440E; font-style: italic; }
-  /* Needs attention — yellow highlight (wins) */
+  /* Needs attention — yellow highlight (wins over confirmed) */
   .cs-attention .cs-name { background: #FCE38A; color: #2B2521; }
   .cs-legend { display: flex; gap: 16px; flex-wrap: wrap; font-family: 'IBM Plex Sans', sans-serif;
                font-size: 12px; color: #6B5F54; margin: 6px 0 16px; }
   .cs-legend span { display: inline-flex; align-items: center; gap: 6px; }
   .cs-swatch { width: 14px; height: 14px; border: 1px solid #C4B7A6; display: inline-block; }
+  .cs-del { color: #C1440E; }
+  .cs-add { margin-top: 4px; }
+  .cs-add summary { cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+                    color: #8A3A2E; list-style: none; }
+  .cs-add summary::-webkit-details-marker { display: none; }
+  .cs-add select, .cs-add input { width: 100%; font-size: 11px; padding: 2px 3px; margin-top: 3px;
+                                  border: 1px solid #C4B7A6; background: #fff; border-radius: 2px; }
+  .cs-times { display: flex; gap: 3px; }
+  .cs-add button { margin-top: 3px; width: 100%; font-size: 11px; padding: 2px 4px; cursor: pointer;
+                   border: 1px solid #8A3A2E; background: #8A3A2E; color: #FBF9F4; border-radius: 2px; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-2" style="flex-wrap:wrap;gap:10px;">
@@ -47,11 +53,10 @@
 </div>
 
 <div class="cs-legend">
-  <span><span class="cs-swatch" style="background:#9FE0E0;"></span> Confirmed provider</span>
-  <span><span class="cs-swatch" style="background:#fff;"></span><span style="color:#7C3AED;font-weight:600;">Provider — not confirmed</span></span>
-  <span><span class="cs-swatch" style="background:#fff;"></span><span style="color:#C1440E;font-style:italic;">Support staff</span></span>
+  <span><span class="cs-swatch" style="background:#9FE0E0;"></span> Confirmed</span>
+  <span><span class="cs-swatch" style="background:#FBF9F4;"></span> Not confirmed</span>
   <span><span class="cs-swatch" style="background:#FCE38A;"></span> Needs attention</span>
-  <span style="color:#9A8D7E;">Click a name to confirm · <b>!</b> to flag</span>
+  <span style="color:#9A8D7E;">Click a name to confirm · <b>!</b> to flag · <b>✕</b> to remove · <b>+ assign</b> to schedule someone</span>
 </div>
 
 <div class="d-flex align-items-center gap-2 mb-3" style="flex-wrap:wrap;">
@@ -76,8 +81,8 @@
         <td class="cs-loc">{{ row.location.name|default:"Unassigned" }}</td>
         {% for cell in row.cells %}
         <td>
-          {% for s in cell %}
-          <div class="cs-entry {% if s.needs_attention %}cs-attention{% elif s.employee.employee_type == 'PROVIDER' %}{% if s.confirmed %}cs-confirmed{% else %}cs-unconfirmed{% endif %}{% else %}cs-staff{% endif %}">
+          {% for s in cell.shifts %}
+          <div class="cs-entry {% if s.needs_attention %}cs-attention{% elif s.confirmed %}cs-confirmed{% endif %}">
             <form method="post" action="{% url 'dashboard:shift_toggle_status' s.pk %}" style="display:inline;margin:0;">
               {% csrf_token %}<input type="hidden" name="action" value="confirm">
               <button type="submit" class="cs-name" title="Toggle confirmed">{{ s.employee.name }}{% if s.compact_time %} {{ s.compact_time }}{% endif %}</button>
@@ -86,10 +91,29 @@
               {% csrf_token %}<input type="hidden" name="action" value="flag">
               <button type="submit" class="cs-flag" title="Flag for attention">!</button>
             </form>
+            <button type="button" class="cs-flag cs-del" data-url="{% url 'dashboard:api_delete_shift' s.pk %}"
+                    title="Remove shift">✕</button>
           </div>
           {% empty %}
           <span style="color:#C4B7A6;">—</span>
           {% endfor %}
+
+          {% if row.employees %}
+          <details class="cs-add">
+            <summary title="Assign someone">+ assign</summary>
+            <select class="cs-emp">
+              {% for e in row.employees %}
+              <option value="{{ e.pk }}">{{ e.name }}{% if e.employee_type != 'PROVIDER' %} ({{ e.get_employee_type_display }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            <div class="cs-times">
+              <input type="time" class="cs-start" value="08:00" step="900">
+              <input type="time" class="cs-end" value="17:00" step="900">
+            </div>
+            <button type="button" class="cs-save" data-date="{{ cell.date|date:'Y-m-d' }}"
+                    data-location="{{ row.location.pk }}">Add</button>
+          </details>
+          {% endif %}
         </td>
         {% endfor %}
       </tr>
@@ -97,4 +121,40 @@
     </tbody>
   </table>
 </div>
+
+<form id="cs-csrf" style="display:none;">{% csrf_token %}</form>
+<script>
+// Assign / remove straight from the grid, reusing the planner's JSON endpoints.
+const CSRF = document.querySelector('#cs-csrf [name=csrfmiddlewaretoken]').value;
+
+async function post(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: body ? JSON.stringify(body) : null,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { alert(data.error || 'Something went wrong.'); return false; }
+  return true;
+}
+
+document.querySelectorAll('.cs-save').forEach(btn => btn.addEventListener('click', async () => {
+  const box = btn.closest('.cs-add');
+  btn.disabled = true;
+  const ok = await post('{% url "dashboard:api_add_shift" %}', {
+    employee_id: box.querySelector('.cs-emp').value,
+    date: btn.dataset.date,
+    location_id: btn.dataset.location,
+    start_time: box.querySelector('.cs-start').value,
+    end_time: box.querySelector('.cs-end').value,
+  });
+  btn.disabled = false;
+  if (ok) location.reload();
+}));
+
+document.querySelectorAll('.cs-del').forEach(btn => btn.addEventListener('click', async () => {
+  if (!confirm('Remove this shift?')) return;
+  if (await post(btn.dataset.url)) location.reload();
+}));
+</script>
 {% endblock %}
