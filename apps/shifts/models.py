@@ -39,6 +39,39 @@ class Shift(models.Model):
     def __str__(self):
         return f"{self.employee.name} — {self.date} {self.start_time}-{self.end_time}"
 
+    def overlapping(self):
+        """This employee's other shifts that clash in time on the same day.
+        Half-open comparison: 9–12 and 12–5 are back-to-back, not a clash."""
+        return Shift.objects.filter(
+            employee_id=self.employee_id,
+            date=self.date,
+            start_time__lt=self.end_time,
+            end_time__gt=self.start_time,
+        ).exclude(pk=self.pk)
+
+    def save(self, *args, **kwargs):
+        """Double-bookings are flagged, not blocked — a manager may genuinely
+        want one. Both sides go yellow so the clash is visible on the schedule.
+        ponytail: flagging reuses needs_attention rather than adding a separate
+        conflict field; split them if attention ever needs its own meaning."""
+        fields = set(kwargs.get("update_fields") or ())
+        # The confirm/flag buttons must stay able to clear the flag.
+        just_toggling = bool(fields) and fields <= {"confirmed", "needs_attention"}
+        clashes = None
+        if not just_toggling and self.employee_id and self.date and self.start_time and self.end_time:
+            clashes = self.overlapping()
+            if clashes.exists():
+                self.needs_attention = True
+                if fields:
+                    kwargs["update_fields"] = fields | {"needs_attention"}
+            else:
+                clashes = None
+
+        super().save(*args, **kwargs)
+
+        if clashes is not None:
+            clashes.update(needs_attention=True)
+
     @property
     def site(self):
         """Location this shift belongs to. Falls back to the employee's home

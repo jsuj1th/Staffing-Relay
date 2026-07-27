@@ -36,8 +36,10 @@
   .cs-add select, .cs-add input { width: 100%; font-size: 11px; padding: 2px 3px; margin-top: 3px;
                                   border: 1px solid #C4B7A6; background: #fff; border-radius: 2px; }
   .cs-times { display: flex; gap: 3px; }
-  .cs-add button { margin-top: 3px; width: 100%; font-size: 11px; padding: 2px 4px; cursor: pointer;
+  .cs-actions { display: flex; gap: 3px; }
+  .cs-add button { margin-top: 3px; flex: 1; font-size: 11px; padding: 2px 4px; cursor: pointer;
                    border: 1px solid #8A3A2E; background: #8A3A2E; color: #FBF9F4; border-radius: 2px; }
+  .cs-cancel { border-color: #C4B7A6 !important; background: #FBF9F4 !important; color: #6B5F54 !important; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-2" style="flex-wrap:wrap;gap:10px;">
@@ -110,8 +112,11 @@
               <input type="time" class="cs-start" value="08:00" step="900">
               <input type="time" class="cs-end" value="17:00" step="900">
             </div>
-            <button type="button" class="cs-save" data-date="{{ cell.date|date:'Y-m-d' }}"
-                    data-location="{{ row.location.pk }}">Add</button>
+            <div class="cs-actions">
+              <button type="button" class="cs-save" data-date="{{ cell.date|date:'Y-m-d' }}"
+                      data-location="{{ row.location.pk }}">Add</button>
+              <button type="button" class="cs-cancel">Cancel</button>
+            </div>
           </details>
           {% endif %}
         </td>
@@ -135,6 +140,7 @@ async function post(url, body) {
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) { alert(data.error || 'Something went wrong.'); return false; }
+  if (data.warning) alert(data.warning);
   return true;
 }
 
@@ -150,6 +156,15 @@ document.querySelectorAll('.cs-save').forEach(btn => btn.addEventListener('click
   });
   btn.disabled = false;
   if (ok) location.reload();
+}));
+
+// Close the box and put the fields back how they started.
+document.querySelectorAll('.cs-cancel').forEach(btn => btn.addEventListener('click', () => {
+  const box = btn.closest('.cs-add');
+  box.querySelector('.cs-emp').selectedIndex = 0;
+  box.querySelector('.cs-start').value = '08:00';
+  box.querySelector('.cs-end').value = '17:00';
+  box.open = false;
 }));
 
 document.querySelectorAll('.cs-del').forEach(btn => btn.addEventListener('click', async () => {

@@ -416,7 +416,7 @@
       .then(r => r.json())
       .then(data => {
         if (data.success) {
-          showStatus(`✓ Shift added for ${employeeName}`);
+          showStatus(data.warning ? `⚠ ${data.warning}` : `✓ Shift added for ${employeeName}`);
           setTimeout(() => location.reload(), 800);
         } else {
           showStatus(data.error, false);

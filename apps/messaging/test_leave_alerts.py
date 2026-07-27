@@ -68,6 +68,20 @@ class LeaveAlertTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["office@clinic.com"])
         sms.assert_not_called()
 
+    def test_auto_rejected_leave_emails_admins_once(self):
+        """SMS auto-reject inserts the leave already REJECTED (no PENDING step),
+        so admins get exactly one email and it says rejected."""
+        today = date.today()
+        with patch("apps.messaging.leave_alerts.send_sms", return_value=True):
+            Leave.objects.create(
+                employee=self.emp, start_date=today, end_date=today,
+                status=Leave.Status.REJECTED,
+                internal_note="[MENU] SICK - Coverage: impossible",
+            )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Leave rejected", mail.outbox[0].subject)
+        self.assertIn("Rejected", mail.outbox[0].body)
+
     def test_master_toggle_off_sends_nothing(self):
         s = NotificationSetting.load()
         s.leave_alerts_enabled = False

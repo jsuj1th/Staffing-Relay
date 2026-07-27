@@ -699,10 +699,21 @@ def api_add_shift_to_planner(request):
         from apps.messaging.notifications import notify_shift_assigned
         notify_shift_assigned(shift, send_immediately=True)
 
+        # Double-booked? Shift.save() flagged both sides; tell the manager why.
+        warning = None
+        clashes = shift.overlapping()
+        if clashes.exists():
+            where = ", ".join(
+                f"{c.site.name if c.site else 'unassigned'} {c.compact_time}" for c in clashes
+            )
+            warning = f"{employee.name} is already scheduled that day: {where}. Flagged for attention."
+            logger.warning("Double-booking: %s on %s — %s", employee.name, shift_date, where)
+
         return JsonResponse({
             "success": True,
             "shift_id": shift.id,
             "message": f"Shift added for {employee.name}",
+            "warning": warning,
         })
     except Exception as e:
         logger.error(f"Error adding shift: {e}")
