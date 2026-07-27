@@ -94,3 +94,7 @@ CELERY_TASK_SERIALIZER = "json"
 LOGIN_URL = "/dashboard/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/dashboard/login/"
+
+# Email (admin leave notifications). EMAIL_URL e.g. smtp://user:pass@smtp.host:587/?tls=True
+vars().update(env.email_url("EMAIL_URL", default="consolemail://"))
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="relay@localhost")

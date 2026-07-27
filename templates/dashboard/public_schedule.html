@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if employee %}{{ employee.name }} — {% endif %}Schedule {{ month_start|date:"F Y" }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; background: #EAE3D7; color: #2B2521;
+           font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; }
+    header { max-width: 1100px; margin: 0 auto 12px; display: flex; justify-content: space-between;
+             align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+    h1 { font-family: 'Spectral', serif; font-size: 22px; margin: 0; }
+    .sub { font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-transform: uppercase;
+           letter-spacing: .05em; color: #6B5F54; }
+    .nav a { display: inline-block; padding: 6px 10px; margin-left: 6px; background: #FBF9F4;
+             border: 1px solid #C4B7A6; border-radius: 3px; color: #2B2521; text-decoration: none;
+             font-size: 13px; }
+    .wrap { max-width: 1100px; margin: 0 auto; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; min-width: 700px; background: #FBF9F4; }
+    th, td { border: 1px solid #D6CBBA; vertical-align: top; padding: 6px 8px; }
+    th { background: #F1EADD; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+         text-transform: uppercase; letter-spacing: .05em; color: #6B5F54; text-align: left; }
+    td { height: 92px; width: 14.28%; }
+    .dim { background: #F3EEE4; color: #A79B8B; }
+    .today { outline: 2px solid #8A3A2E; outline-offset: -2px; }
+    .daynum { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B5F54; margin-bottom: 4px; }
+    .s { font-size: 12px; line-height: 1.35; margin-bottom: 3px; }
+    .s .t { font-family: 'IBM Plex Mono', monospace; color: #6B5F54; }
+    .s.attention { background: #FCE38A; }
+    .s.staff { color: #C1440E; font-style: italic; }
+    footer { max-width: 1100px; margin: 12px auto 0; font-size: 12px; color: #6B5F54; }
+    @media print { body { background: #fff; } .nav { display: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>{% if employee %}{{ employee.name }}{% else %}Team Schedule{% endif %}</h1>
+      <div class="sub">
+        {{ month_start|date:"F Y" }}
+        {% if employee and employee.location %} · {{ employee.location.name }}{% endif %}
+      </div>
+    </div>
+    <div class="nav">
+      <a href="?month={{ prev_month }}">← Prev</a>
+      <a href="?month={{ this_month }}">This month</a>
+      <a href="?month={{ next_month }}">Next →</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr>
+      </thead>
+      <tbody>
+        {% for week in grid %}
+        <tr>
+          {% for cell in week %}
+          <td class="{% if not cell.in_month %}dim{% endif %} {% if cell.is_today %}today{% endif %}">
+            <div class="daynum">{{ cell.date|date:"j" }}</div>
+            {% for s in cell.shifts %}
+            <div class="s {% if s.needs_attention %}attention{% elif s.employee.employee_type != 'PROVIDER' %}staff{% endif %}">
+              {% if not employee %}{{ s.employee.name }}<br>{% endif %}
+              <span class="t">{{ s.compact_time }}</span>
+            </div>
+            {% endfor %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <footer>Read-only view. Times may change — check with your manager before relying on a shift.</footer>
+</body>
+</html>

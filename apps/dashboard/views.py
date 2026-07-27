@@ -1,6 +1,11 @@
+import calendar
 import json
 import logging
 from datetime import date, timedelta
+from django.core import signing
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
@@ -485,6 +490,7 @@ def combined_schedule(request):
         "days": days,
         "rows": rows,
         "today": today,
+        "public_url": request.build_absolute_uri(public_schedule_path()),
     })
 
 
@@ -981,6 +987,7 @@ def employee_detail(request, pk):
         "recent_leaves": recent_leaves,
         "leave_stats": leave_stats,
         "today": today,
+        "public_url": request.build_absolute_uri(public_schedule_path(employee)),
     })
 
 
@@ -1104,3 +1111,114 @@ def leave_edit(request, pk):
         "leave": leave,
         "action": "Edit",
     })
+
+
+# ─── Public (no-login) monthly schedule ───
+
+PUBLIC_SALT = "relay-public-schedule"
+
+
+def public_schedule_path(employee=None):
+    """Shareable path for the public monthly planner. No employee = all staff.
+    Token is a signed value — no DB column, revoke by rotating SECRET_KEY.
+    ponytail: signing over a stored token; add a per-employee token row if you
+    ever need to revoke one link without rotating the key."""
+    from django.urls import reverse
+    token = signing.dumps("all" if employee is None else employee.pk, salt=PUBLIC_SALT)
+    return reverse("public_schedule", args=[token])
+
+
+def public_schedule(request, token):
+    """Read-only month grid of shifts, viewable without login."""
+    try:
+        target = signing.loads(token, salt=PUBLIC_SALT)
+    except signing.BadSignature:
+        raise Http404("Invalid or expired schedule link")
+
+    today = timezone.localdate()
+    try:
+        y, m = (int(x) for x in request.GET["month"].split("-"))
+        month_start = date(y, m, 1)
+    except (KeyError, ValueError):
+        month_start = today.replace(day=1)
+
+    weeks = calendar.Calendar(firstweekday=0).monthdatescalendar(month_start.year, month_start.month)
+    first, last = weeks[0][0], weeks[-1][-1]
+
+    shifts = (
+        Shift.objects.filter(date__gte=first, date__lte=last, employee__is_active=True)
+        .select_related("employee", "employee__location")
+        .order_by("date", "start_time", "employee__name")
+    )
+    employee = None
+    if target != "all":
+        employee = get_object_or_404(Employee, pk=target)
+        shifts = shifts.filter(employee=employee)
+
+    by_date = {}
+    for s in shifts:
+        by_date.setdefault(s.date, []).append(s)
+
+    grid = [[{
+        "date": d,
+        "in_month": d.month == month_start.month,
+        "is_today": d == today,
+        "shifts": by_date.get(d, []),
+    } for d in week] for week in weeks]
+
+    prev_month = (month_start - timedelta(days=1)).replace(day=1)
+    next_month = (weeks[-1][-1] + timedelta(days=7)).replace(day=1)
+
+    return render(request, "dashboard/public_schedule.html", {
+        "employee": employee,
+        "month_start": month_start,
+        "grid": grid,
+        "prev_month": prev_month.strftime("%Y-%m"),
+        "next_month": next_month.strftime("%Y-%m"),
+        "this_month": today.strftime("%Y-%m"),
+    })
+
+
+# ─── Notification settings (admin leave emails) ───
+
+@login_required
+def notification_settings(request):
+    """Manage the admin contacts that get emailed on leave activity."""
+    from apps.messaging.models import NotificationSetting
+
+    setting = NotificationSetting.load()
+    if request.method == "POST":
+        action = request.POST.get("action", "save")
+        if action == "test":
+            from apps.messaging.leave_emails import send_leave_email
+            leave = Leave.objects.select_related("employee").first()
+            if not leave:
+                messages.error(request, "No leave records yet — nothing to send a sample of.")
+            elif send_leave_email(leave, leave.status):
+                messages.success(request, f"Test email sent to {', '.join(setting.recipient_list)}.")
+            else:
+                messages.error(request, "Test email not sent — check recipients, the toggle, and the logs.")
+            return redirect("dashboard:notification_settings")
+
+        raw = request.POST.get("leave_email_recipients", "")
+        setting.leave_email_recipients = raw
+        setting.leave_email_enabled = bool(request.POST.get("leave_email_enabled"))
+        setting.shift_assignment_enabled = bool(request.POST.get("shift_assignment_enabled"))
+
+        invalid = []
+        for email in setting.recipient_list:
+            try:
+                validate_email(email)
+            except ValidationError:
+                invalid.append(email)
+        if invalid:
+            messages.error(request, f"Not valid email address(es): {', '.join(invalid)}")
+        else:
+            setting.save()
+            logger.info("Notification settings updated by %s: recipients=%s leave_email=%s shift_sms=%s",
+                        request.user, setting.recipient_list,
+                        setting.leave_email_enabled, setting.shift_assignment_enabled)
+            messages.success(request, "Notification settings saved.")
+            return redirect("dashboard:notification_settings")
+
+    return render(request, "dashboard/notification_settings.html", {"setting": setting})

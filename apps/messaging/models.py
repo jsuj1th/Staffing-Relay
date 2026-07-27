@@ -5,11 +5,23 @@ from django.utils import timezone
 class NotificationSetting(models.Model):
     """Global notification switches. Singleton row (pk=1)."""
     shift_assignment_enabled = models.BooleanField(default=True)
+    # Admin/office contacts emailed on every leave request and decision.
+    # ponytail: plain text list, not a Recipient model — add one if you ever need
+    # per-recipient opt-outs or names.
+    leave_email_enabled = models.BooleanField(default=True)
+    leave_email_recipients = models.TextField(
+        blank=True,
+        help_text="Admin emails, one per line or comma-separated.",
+    )
 
     @classmethod
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    @property
+    def recipient_list(self):
+        return [e.strip() for e in self.leave_email_recipients.replace(",", "\n").splitlines() if e.strip()]
 
 
 class SmsLog(models.Model):

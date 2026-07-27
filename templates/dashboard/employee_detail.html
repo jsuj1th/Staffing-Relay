@@ -13,6 +13,15 @@
   <a href="{% url 'dashboard:employee_edit' employee.pk %}" class="relay-btn relay-btn-primary">Edit</a>
 </div>
 
+<!-- Personal public schedule link (share with the employee) -->
+<div class="d-flex align-items-center gap-2 mb-4" style="flex-wrap:wrap;">
+  <span class="section-label">Their schedule link</span>
+  <input value="{{ public_url }}" readonly onclick="this.select()" style="flex:1;min-width:260px;
+         font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 8px;
+         border:1px solid #C4B7A6;border-radius:3px;background:#FBF9F4;">
+  <a class="relay-btn" href="{{ public_url }}" target="_blank">Open</a>
+</div>
+
 <!-- Key Stats Grid -->
 <div class="row g-3 mb-4" style="margin-bottom:28px;">
   <div class="col-md-3">

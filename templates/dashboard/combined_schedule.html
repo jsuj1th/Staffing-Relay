@@ -54,6 +54,14 @@
   <span style="color:#9A8D7E;">Click a name to confirm · <b>!</b> to flag</span>
 </div>
 
+<div class="d-flex align-items-center gap-2 mb-3" style="flex-wrap:wrap;">
+  <span class="section-label">Public monthly link</span>
+  <input value="{{ public_url }}" readonly onclick="this.select()" style="flex:1;min-width:260px;
+         font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 8px;
+         border:1px solid #C4B7A6;border-radius:3px;background:#FBF9F4;">
+  <a class="relay-btn" href="{{ public_url }}" target="_blank">Open</a>
+</div>
+
 <div class="cs-wrap">
   <table class="cs-table">
     <thead>

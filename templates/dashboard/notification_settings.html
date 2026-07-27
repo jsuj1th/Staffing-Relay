@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Notifications — Relay{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h2 class="page-title" style="margin-bottom:2px;">Notifications</h2>
+  <div class="section-label">who gets told what</div>
+</div>
+
+<form method="post" style="max-width:720px;">
+  {% csrf_token %}
+
+  <div style="background:#F1EADD; border:1px solid #E4DACB; padding:20px; margin-bottom:20px;">
+    <h3 style="font-family:'Spectral',serif; font-size:17px; margin:0 0 4px;">Admin leave emails</h3>
+    <p style="font-size:13px; color:#6B5F54; margin:0 0 14px;">
+      These contacts are emailed every time an employee requests leave, and again when it is
+      approved, rejected or cancelled — whether the decision came from the dashboard or over SMS.
+    </p>
+
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin-bottom:14px;">
+      <input type="checkbox" name="leave_email_enabled" {% if setting.leave_email_enabled %}checked{% endif %}>
+      Send leave emails
+    </label>
+
+    <label class="section-label" for="recipients">Admin emails — one per line</label>
+    <textarea id="recipients" name="leave_email_recipients" rows="5"
+              placeholder="office@clinic.com&#10;manager@clinic.com"
+              style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:10px;
+                     border:1px solid #C4B7A6; border-radius:3px; background:#FBF9F4;">{{ setting.leave_email_recipients }}</textarea>
+    {% if setting.recipient_list %}
+      <div style="font-size:12px; color:#6B5F54; margin-top:6px;">
+        Currently notifying {{ setting.recipient_list|length }} contact{{ setting.recipient_list|length|pluralize }}.
+      </div>
+    {% endif %}
+  </div>
+
+  <div style="background:#F1EADD; border:1px solid #E4DACB; padding:20px; margin-bottom:20px;">
+    <h3 style="font-family:'Spectral',serif; font-size:17px; margin:0 0 4px;">Employee shift SMS</h3>
+    <p style="font-size:13px; color:#6B5F54; margin:0 0 14px;">
+      Texts employees when a new shift is assigned to them. Cancellations, changes and manual
+      reminders always send.
+    </p>
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px;">
+      <input type="checkbox" name="shift_assignment_enabled" {% if setting.shift_assignment_enabled %}checked{% endif %}>
+      Send shift-assignment texts
+    </label>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" name="action" value="save" class="relay-btn relay-btn-primary">Save</button>
+    <button type="submit" name="action" value="test" class="relay-btn">Send test email</button>
+  </div>
+</form>
+{% endblock %}
