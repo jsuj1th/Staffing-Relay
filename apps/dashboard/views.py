@@ -179,14 +179,16 @@ def employee_create(request):
         )
         logger.info("Employee created: id=%d name=%s", emp.id, emp.name)
 
-        # For shared employees, create EmployeeLocation records
-        if not is_location_specific and shared_location_ids:
-            for i, loc_id in enumerate(shared_location_ids):
-                EmployeeLocation.objects.create(
-                    employee=emp,
-                    location_id=loc_id,
-                    is_primary=(i == 0),
-                )
+        # Extra locations — any type may work at more than one site. For
+        # providers/MAs the FK above stays their home location (ratio anchor).
+        for i, loc_id in enumerate(shared_location_ids):
+            if str(loc_id) == str(emp.location_id):
+                continue
+            EmployeeLocation.objects.get_or_create(
+                employee=emp,
+                location_id=loc_id,
+                defaults={"is_primary": i == 0 and not emp.location_id},
+            )
 
         messages.success(request, f"Employee {emp.name} added successfully.")
         return redirect("dashboard:employees")
@@ -218,15 +220,16 @@ def employee_edit(request, pk):
             emp.save()
             logger.info("Employee updated: id=%d name=%s", emp.id, emp.name)
 
-            # Update shared locations
-            if not is_location_specific:
-                emp.employee_locations.all().delete()
-                for i, loc_id in enumerate(shared_location_ids):
-                    EmployeeLocation.objects.get_or_create(
-                        employee=emp,
-                        location_id=loc_id,
-                        defaults={"is_primary": i == 0},
-                    )
+            # Update extra locations (all types; home location kept on the FK)
+            emp.employee_locations.all().delete()
+            for i, loc_id in enumerate(shared_location_ids):
+                if str(loc_id) == str(emp.location_id):
+                    continue
+                EmployeeLocation.objects.get_or_create(
+                    employee=emp,
+                    location_id=loc_id,
+                    defaults={"is_primary": i == 0 and not emp.location_id},
+                )
 
             messages.success(request, f"Employee {emp.name} updated.")
             return redirect("dashboard:employees")

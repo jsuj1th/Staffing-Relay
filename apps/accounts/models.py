@@ -55,9 +55,8 @@ class Employee(models.Model):
 
     @property
     def location_display(self):
-        """Location name(s) for display. Direct FK for providers/MAs; the linked
-        EmployeeLocation names for shared staff; "Shared" only if none assigned."""
-        if self.location:
-            return self.location.name
-        names = [el.location.name for el in self.employee_locations.all()]
+        """Location name(s) for display: home location first (providers/MAs),
+        then any additional linked sites; "Shared" only if none assigned."""
+        names = [self.location.name] if self.location else []
+        names += [el.location.name for el in self.employee_locations.all()]
         return ", ".join(names) if names else "Shared"

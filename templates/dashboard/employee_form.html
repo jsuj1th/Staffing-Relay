@@ -91,11 +91,11 @@
       </select>
     </div>
 
-    <!-- Shared Locations (Front Desk / Management) -->
-    <div id="shared-locations" class="mb-3" style="display:none;">
+    <!-- Additional locations — every type can work at more than one site -->
+    <div id="shared-locations" class="mb-3">
       <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase;
                     letter-spacing:0.08em; color:#9A8D7E; display:block; margin-bottom:8px;">
-        Assigned Locations
+        <span id="shared-label">Assigned Locations</span>
       </label>
       <div style="border:1px solid #D6CBBA; background:#FBF9F4; padding:16px; display:flex; flex-direction:column; gap:10px;">
         {% for loc in locations %}
@@ -109,7 +109,7 @@
         </label>
         {% endfor %}
       </div>
-      <span style="font-family:'IBM Plex Sans',sans-serif; font-size:12px; color:#9A8D7E;
+      <span id="shared-hint" style="font-family:'IBM Plex Sans',sans-serif; font-size:12px; color:#9A8D7E;
                    display:block; margin-top:6px;">
         First checked location will be set as primary.
       </span>
@@ -152,18 +152,18 @@
 <script>
 const typeSelect = document.getElementById('emp-type');
 const specificDiv = document.getElementById('specific-location');
-const sharedDiv = document.getElementById('shared-locations');
 const sharedTypes = ['FRONT_DESK', 'MANAGEMENT'];
 
+// The checkbox list is always available; providers/MAs additionally pick a home
+// location (the one the staffing ratio is calculated against).
 function updateLocationFields() {
-  const val = typeSelect.value;
-  if (sharedTypes.includes(val)) {
-    specificDiv.style.display = 'none';
-    sharedDiv.style.display = '';
-  } else {
-    specificDiv.style.display = '';
-    sharedDiv.style.display = 'none';
-  }
+  const shared = sharedTypes.includes(typeSelect.value);
+  specificDiv.style.display = shared ? 'none' : '';
+  document.getElementById('shared-label').textContent =
+    shared ? 'Assigned Locations' : 'Additional Locations';
+  document.getElementById('shared-hint').textContent =
+    shared ? 'First checked location will be set as primary.'
+           : 'Other sites this employee also works at. The Location above stays their home site for ratio checks.';
 }
 typeSelect.addEventListener('change', updateLocationFields);
 updateLocationFields();
