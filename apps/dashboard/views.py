@@ -459,10 +459,12 @@ def combined_schedule(request):
     except (ValueError, KeyError):
         week_date = today
     week_start = week_date - timedelta(days=week_date.weekday())  # Monday
-    days = [week_start + timedelta(days=i) for i in range(6)]     # Mon–Sat
+    # Previous Saturday first, then Mon–Sat of the selected week (Sunday is skipped,
+    # so filter on the exact dates rather than a range).
+    days = [week_start - timedelta(days=2)] + [week_start + timedelta(days=i) for i in range(6)]
 
     shifts = (
-        Shift.objects.filter(date__gte=days[0], date__lte=days[-1], employee__is_active=True)
+        Shift.objects.filter(date__in=days, employee__is_active=True)
         .select_related("employee", "employee__location", "location")
         .prefetch_related("employee__employee_locations__location")
         .order_by("employee__employee_type", "employee__name", "start_time")
