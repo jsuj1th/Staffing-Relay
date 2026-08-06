@@ -27,7 +27,10 @@ class ShiftLocationTests(TestCase):
         s = NotificationSetting.load()
         s.shift_sms_enabled = False  # keep tests from texting
         s.save()
-        self.day = date.today() + timedelta(days=3)
+        # Next Monday — a fixed offset could land on Sunday, which the combined
+        # grid doesn't render, making this suite fail depending on the weekday.
+        today = date.today()
+        self.day = today + timedelta(days=7 - today.weekday())
 
     def _assign(self, location):
         return self.client.post(
