@@ -451,7 +451,7 @@ def shift_day(request):
 
 @login_required
 def combined_schedule(request):
-    """All locations at once for one week (Mon–Fri): locations as rows, days as
+    """All locations at once for one week (Mon–Sat): locations as rows, days as
     columns, everyone scheduled in each cell, color-coded by confirmation."""
     today = timezone.localdate()
     try:
@@ -459,7 +459,7 @@ def combined_schedule(request):
     except (ValueError, KeyError):
         week_date = today
     week_start = week_date - timedelta(days=week_date.weekday())  # Monday
-    days = [week_start + timedelta(days=i) for i in range(5)]     # Mon–Fri
+    days = [week_start + timedelta(days=i) for i in range(6)]     # Mon–Sat
 
     shifts = (
         Shift.objects.filter(date__gte=days[0], date__lte=days[-1], employee__is_active=True)
